@@ -163,7 +163,6 @@ with st.sidebar:
     nav_options = {'dash': t('menu_dash'), 'perf': t('menu_perf'), 'data': t('menu_data')}
     selected_page = st.radio("Menu", list(nav_options.keys()), format_func=lambda x: nav_options[x])
     
-    # --- FILTER TANGGAL (GLOBAL) ---
     st.markdown("---")
     st.subheader(f"🗓️ {t('filter_date')}")
     
@@ -323,11 +322,12 @@ if selected_page == 'dash':
             st.plotly_chart(fig_m, use_container_width=True)
 
 # ==========================================
-# 6. HALAMAN 2: PERFORMA DRIVER (UPDATE TABEL BUCKETS)
+# 6. HALAMAN 2: PERFORMA DRIVER (REVISI BESAR)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title'))
     
+    # 1. Upload & Download Template
     col_up, col_dl = st.columns([3, 1])
     with col_up:
         uploaded = st.file_uploader(t('upload_perf'), type=['xlsx'])
@@ -349,7 +349,7 @@ elif selected_page == 'perf':
         df = st.session_state['perf_data'].copy()
         df['Tanggal'] = pd.to_datetime(df['Tanggal'])
 
-        # DELETE DATA
+        # 2. FITUR DELETE DATA
         with st.expander(f"🗑️ {t('manage_data')}"):
             c_del1, c_del2 = st.columns([3, 1])
             del_dt = c_del1.date_input(t('del_date'), key='del_dt_picker')
@@ -360,34 +360,84 @@ elif selected_page == 'perf':
                         st.success("Data Deleted.")
                         st.rerun()
 
-        # APPLY GLOBAL FILTER
+        # 3. FILTER LOGIC
         mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
         df = df.loc[mask]
 
-        # --- 4. ANALISIS BUCKET (TABEL SESUAI GAMBAR) ---
-        st.divider()
-        st.subheader("📊 Rangkuman Performa Driver (Summary)")
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔍 Filter Detail Driver")
+        
+        # Filter Level
+        avail_levels = ["Standard", "Premium"]
+        sel_levels = st.sidebar.multiselect(t('filter_brand'), avail_levels, default=avail_levels)
+        
+        # Filter Jam Online
+        hour_opts = ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"]
+        sel_hour = st.sidebar.selectbox(t('filter_hour'), hour_opts)
 
-        # Prepare Helper Function
+        # Filter Pendapatan (Logika Dinamis)
+        earn_opts = ["Semua"]
+        if "Standard" in sel_levels:
+            earn_opts.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
+        if "Premium" in sel_levels:
+            earn_opts.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
+        
+        earn_opts = list(dict.fromkeys(earn_opts))
+        sel_earn = st.sidebar.selectbox(t('filter_earn'), earn_opts)
+
+        # --- TERAPKAN FILTER ---
+        if sel_levels:
+            df = df[df['Merek'].isin(sel_levels)]
+        
+        if sel_hour == "< 7 Jam": df = df[df['Total Online Hours'] < 7]
+        elif sel_hour == "7 - 9 Jam": df = df[(df['Total Online Hours'] >= 7) & (df['Total Online Hours'] < 9)]
+        elif sel_hour == ">= 9 Jam": df = df[df['Total Online Hours'] >= 9]
+
+        if sel_earn != "Semua":
+            if "Standard < 300rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] < 300000)]
+            elif "Standard 300rb-400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 300000) & (df['Net Earnings'] < 400000)]
+            elif "Standard >= 400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 400000)]
+            elif "Premium < 500rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] < 500000)]
+            elif "Premium 500rb-600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 500000) & (df['Net Earnings'] < 600000)]
+            elif "Premium >= 600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 600000)]
+
+        # --- PREPARE DISPLAY DATA ---
+        df_display = df.rename(columns={'Merek': 'Level'})
+
+        # 4. TABEL BUCKET (ANALISIS)
+        st.divider()
+        st.subheader("📊 Analisis Pencapaian Target (Standard & Premium)")
+        
+        # Helper to categorize bucket
+        def classify_bucket(row):
+            earn = row['Net Earnings']
+            lvl = row['Level']
+            if lvl == 'Standard':
+                if earn < 300000: return 'Standard < 300rb'
+                elif earn < 400000: return 'Standard 300rb-400rb'
+                else: return 'Standard >= 400rb'
+            elif lvl == 'Premium':
+                if earn < 500000: return 'Premium < 500rb'
+                elif earn < 600000: return 'Premium 500rb-600rb'
+                else: return 'Premium >= 600rb'
+            return 'Other'
+
+        df_display['Bucket'] = df_display.apply(classify_bucket, axis=1)
+        
         def get_bucket_stats(sub_df, buckets, bucket_col):
             stats = []
             total_rev_all = sub_df['Net Earnings'].sum()
-            
             for b_name, condition in buckets.items():
                 filtered = sub_df[condition]
                 omset = filtered['Net Earnings'].sum()
-                # Persentase dari total omset level tersebut
                 pct = (omset / total_rev_all * 100) if total_rev_all > 0 else 0
-                count_drivers = filtered['Nama Driver'].nunique() # Count unique driver interactions
-                
+                count_drivers = filtered['Nama Driver'].nunique()
                 stats.append({
                     bucket_col: b_name,
                     "Omset": format_rupiah(omset),
                     "Persentase": f"{pct:.1f}%",
                     "Jumlah Driver": count_drivers
                 })
-            
-            # Row Total
             stats.append({
                 bucket_col: "Total",
                 "Omset": format_rupiah(total_rev_all),
@@ -396,17 +446,13 @@ elif selected_page == 'perf':
             })
             return pd.DataFrame(stats)
 
-        # Split Data
         df_std = df[df['Merek'] == 'Standard']
         df_prm = df[df['Merek'] == 'Premium']
-
         col_tbl1, col_tbl2 = st.columns(2)
 
-        # === STANDARD TABLES ===
         with col_tbl1:
             st.markdown("### STANDARD")
             if not df_std.empty:
-                # 1. Pendapatan Buckets
                 std_inc_buckets = {
                     "<Rp 300,000": (df_std['Net Earnings'] < 300000),
                     "Rp 300,000 - Rp 400,000": (df_std['Net Earnings'] >= 300000) & (df_std['Net Earnings'] < 400000),
@@ -415,7 +461,6 @@ elif selected_page == 'perf':
                 st.write("**Klasifikasi Pendapatan**")
                 st.dataframe(get_bucket_stats(df_std, std_inc_buckets, "Klasifikasi Pendapatan"), hide_index=True, use_container_width=True)
 
-                # 2. Jam Online Buckets
                 std_hour_buckets = {
                     "< 7 jam": (df_std['Total Online Hours'] < 7),
                     "7-9 jam": (df_std['Total Online Hours'] >= 7) & (df_std['Total Online Hours'] < 9),
@@ -423,14 +468,11 @@ elif selected_page == 'perf':
                 }
                 st.write("**Klasifikasi Jam Online**")
                 st.dataframe(get_bucket_stats(df_std, std_hour_buckets, "Klasifikasi Jam Online"), hide_index=True, use_container_width=True)
-            else:
-                st.info("Tidak ada data Standard.")
+            else: st.info("Tidak ada data Standard.")
 
-        # === PREMIUM TABLES ===
         with col_tbl2:
             st.markdown("### PREMIUM")
             if not df_prm.empty:
-                # 1. Pendapatan Buckets
                 prm_inc_buckets = {
                     "<Rp 500,000": (df_prm['Net Earnings'] < 500000),
                     "Rp 500,000 - Rp 600,000": (df_prm['Net Earnings'] >= 500000) & (df_prm['Net Earnings'] < 600000),
@@ -439,7 +481,6 @@ elif selected_page == 'perf':
                 st.write("**Klasifikasi Pendapatan**")
                 st.dataframe(get_bucket_stats(df_prm, prm_inc_buckets, "Klasifikasi Pendapatan"), hide_index=True, use_container_width=True)
 
-                # 2. Jam Online Buckets
                 prm_hour_buckets = {
                     "< 7 jam": (df_prm['Total Online Hours'] < 7),
                     "7-9 jam": (df_prm['Total Online Hours'] >= 7) & (df_prm['Total Online Hours'] < 9),
@@ -447,15 +488,66 @@ elif selected_page == 'perf':
                 }
                 st.write("**Klasifikasi Jam Online**")
                 st.dataframe(get_bucket_stats(df_prm, prm_hour_buckets, "Klasifikasi Jam Online"), hide_index=True, use_container_width=True)
-            else:
-                st.info("Tidak ada data Premium.")
+            else: st.info("Tidak ada data Premium.")
+
+        # --- 5. TABEL SUMMARY PER DRIVER (SESUAI GAMBAR) ---
+        st.divider()
+        st.subheader("📋 Summary Driver")
+        if not df_display.empty:
+            summary_driver = df_display.groupby(['Nama Driver', 'Kode PT', 'Level']).agg({
+                'Tanggal': 'nunique', # Total Hari Kerja
+                'Net Earnings': 'sum',
+                'Total Online Hours': 'sum',
+                'Total Trip Hours': 'sum',
+                'Total Completed Order': 'sum',
+                'Total Customer Cancelled': 'sum',
+                'Total Driver Cancelled': 'sum'
+            }).reset_index()
+            
+            # Hitung Earning Rata2
+            summary_driver['Earning Rata2'] = summary_driver['Net Earnings'] / summary_driver['Total Completed Order'].replace(0, 1)
+            
+            # Ranking
+            summary_driver['Rank'] = summary_driver['Net Earnings'].rank(ascending=False, method='min').astype(int)
+            summary_driver = summary_driver.sort_values('Rank')
+            
+            # Format Rupiah
+            summary_driver['Pendapatan Bersih'] = summary_driver['Net Earnings'].apply(format_rupiah)
+            summary_driver['Earning Rata2'] = summary_driver['Earning Rata2'].apply(format_rupiah)
+            
+            # Rename Columns to Match Image
+            summary_driver = summary_driver.rename(columns={
+                'Tanggal': 'Total Hari Kerja',
+                'Total Online Hours': 'Jam Online',
+                'Total Trip Hours': 'Jam Trip',
+                'Total Completed Order': 'Total Completed Order',
+                'Total Customer Cancelled': 'Total Customer Cancelled',
+                'Total Driver Cancelled': 'Total Driver Cancelled'
+            })
+            
+            # Reorder Columns (Add No as Index simulation)
+            final_cols = ['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 
+                          'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 
+                          'Total Driver Cancelled', 'Earning Rata2']
+            
+            # Reset index to create "No" column effect if needed, or just hide index
+            st.dataframe(
+                summary_driver[final_cols], 
+                hide_index=True, 
+                use_container_width=True,
+                column_config={
+                    "Jam Online": st.column_config.NumberColumn(format="%.1f"),
+                    "Jam Trip": st.column_config.NumberColumn(format="%.1f")
+                }
+            )
+        else:
+            st.info("Data tidak ditemukan.")
 
         # --- 6. TABEL DETAIL HARIAN (WARNA WARNI) ---
         st.divider()
         st.subheader("📝 Detail Transaksi Harian")
         
         # Rename for display
-        df_display = df.rename(columns={'Merek': 'Level'})
         df_display['Tanggal'] = pd.to_datetime(df_display['Tanggal']).dt.date
         
         # Logic Pewarnaan
