@@ -111,7 +111,7 @@ if 'perf_data' not in st.session_state:
 st.set_page_config(page_title="EV Fleet Management System", layout="wide", initial_sidebar_state="expanded")
 
 # ==========================================
-# 3. KAMUS BAHASA (DIKEMBALIKAN)
+# 3. KAMUS BAHASA
 # ==========================================
 trans = {
     'ID': {
@@ -152,7 +152,6 @@ trans = {
 start_d, end_d = None, None
 
 with st.sidebar:
-    # --- FITUR BAHASA DIKEMBALIKAN ---
     lang_opt = st.radio("Language / 语言", ["ID", "CN"], horizontal=True, key="language")
     
     def t(key):
@@ -164,7 +163,7 @@ with st.sidebar:
     nav_options = {'dash': t('menu_dash'), 'perf': t('menu_perf'), 'data': t('menu_data')}
     selected_page = st.radio("Menu", list(nav_options.keys()), format_func=lambda x: nav_options[x])
     
-    # --- FILTER TANGGAL (TETAP DI SIDEBAR) ---
+    # --- FILTER TANGGAL (GLOBAL) ---
     st.markdown("---")
     st.subheader(f"🗓️ {t('filter_date')}")
     
@@ -196,7 +195,7 @@ def format_rupiah(value):
     return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. HALAMAN 1: DASHBOARD (REVISI LENGKAP)
+# 5. HALAMAN 1: DASHBOARD (TETAP SAMA - OK)
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -229,24 +228,19 @@ if selected_page == 'dash':
 
             # --- RINGKASAN GABUNGAN ---
             st.subheader(f"📊 {t('summary_all')}")
-            
             col_main_metrics, col_main_pie = st.columns([2.5, 1])
-            
             with col_main_metrics:
-                # Baris 1
                 r1c1, r1c2, r1c3 = st.columns(3)
                 r1c1.metric(t('rev'), format_rupiah(tot_omset))
                 r1c2.metric(t('orders'), f"{tot_order}")
                 r1c3.metric(t('drivers'), f"{tot_driver}")
                 
-                # Baris 2
                 r2c1, r2c2, r2c3 = st.columns(3)
                 r2c1.metric(t('avg_day'), format_rupiah(avg_earn_per_day))
                 r2c2.metric(t('avg_ord'), format_rupiah(avg_earn_per_order))
                 r2c3.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
 
             with col_main_pie:
-                # Pie Chart Standard vs Premium
                 pie_data_level = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
                 if not pie_data_level.empty:
                     fig_pie_main = px.pie(pie_data_level, values='Net Earnings', names='Merek', 
@@ -258,7 +252,7 @@ if selected_page == 'dash':
 
             st.markdown("---")
 
-            # --- DETAIL PER LEVEL (METRIC LENGKAP DIKEMBALIKAN) ---
+            # --- DETAIL PER LEVEL ---
             st.subheader(f"🚗 {t('metrics_title')}")
             target_levels = ["Standard", "Premium"]
             
@@ -266,19 +260,15 @@ if selected_page == 'dash':
                 level_df = df_filt[df_filt['Merek'] == level]
                 if not level_df.empty:
                     st.markdown(f"**Level: {level}**")
-                    
-                    # Metrics Calculation
                     l_omset = level_df['Net Earnings'].sum()
                     l_order = level_df['Total Completed Order'].sum()
-                    l_cust = level_df['Total Customer Cancelled'].sum() # Dikembalikan
-                    l_drv = level_df['Total Driver Cancelled'].sum()    # Dikembalikan
-                    l_drivers = level_df['Nama Driver'].nunique()       # Dikembalikan
-                    
+                    l_cust = level_df['Total Customer Cancelled'].sum()
+                    l_drv = level_df['Total Driver Cancelled'].sum()
+                    l_drivers = level_df['Nama Driver'].nunique()
                     l_avg_ord = l_omset / l_order if l_order > 0 else 0
                     l_days = level_df['Tanggal'].nunique()
                     l_avg_day = l_omset / l_days if l_days > 0 else 0
                     
-                    # Layout Lengkap (4 Kolom x 2 Baris)
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric(t('rev'), format_rupiah(l_omset))
                     c2.metric(t('orders'), f"{l_order}")
@@ -289,17 +279,14 @@ if selected_page == 'dash':
                     c5.metric(t('cust_cancel'), f"{l_cust}")
                     c6.metric(t('drv_cancel'), f"{l_drv}")
                     c7.metric(t('drivers'), f"{l_drivers}")
-                    c8.write("") # Spacer
-
+                    c8.write("") 
                     st.divider()
 
-            # --- GRAFIK (FORMAT TANGGAL RAPI) ---
-            
+            # --- GRAFIK ---
             df_filt['DateStr'] = df_filt['Tanggal'].dt.strftime('%Y-%m-%d')
             df_daily_agg = df_filt.groupby(['DateStr', 'Merek', 'Platform'])['Net Earnings'].sum().reset_index()
 
             col_g1, col_g2 = st.columns(2)
-            
             with col_g1:
                 st.subheader(f"Standard (Gojek vs Grab)")
                 data_std = df_daily_agg[df_daily_agg['Merek'] == 'Standard']
@@ -308,8 +295,7 @@ if selected_page == 'dash':
                     fig_std.update_xaxes(tickformat="%d-%b", dtick="D1")
                     fig_std.update_layout(xaxis_title="Date", yaxis_title="Omset")
                     st.plotly_chart(fig_std, use_container_width=True)
-                else:
-                    st.info("No Data Standard.")
+                else: st.info("No Data.")
 
             with col_g2:
                 st.subheader(f"Premium (Gojek vs Grab)")
@@ -319,8 +305,7 @@ if selected_page == 'dash':
                     fig_prm.update_xaxes(tickformat="%d-%b", dtick="D1")
                     fig_prm.update_layout(xaxis_title="Date", yaxis_title="Omset")
                     st.plotly_chart(fig_prm, use_container_width=True)
-                else:
-                    st.info("No Data Premium.")
+                else: st.info("No Data.")
             
             st.subheader(t('chart_total'))
             df_total_daily = df_filt.groupby('DateStr')['Net Earnings'].sum().reset_index()
@@ -333,18 +318,17 @@ if selected_page == 'dash':
             df_filt['MonthObj'] = df_filt['Tanggal'].dt.to_period('M')
             df_mon = df_filt.groupby('MonthObj')['Net Earnings'].sum().reset_index()
             df_mon['MonthLabel'] = df_mon['MonthObj'].dt.strftime("%b'%y")
-            df_mon['MonthStr'] = df_mon['MonthObj'].astype(str)
-
             fig_m = px.line(df_mon, x='MonthLabel', y='Net Earnings', markers=True)
             fig_m.update_layout(xaxis_title="Month", yaxis_title="Total Omset")
             st.plotly_chart(fig_m, use_container_width=True)
 
 # ==========================================
-# 6. HALAMAN 2: PERFORMA DRIVER (TETAP)
+# 6. HALAMAN 2: PERFORMA DRIVER (REVISI BESAR)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title'))
     
+    # 1. Upload & Download Template (TETAP)
     col_up, col_dl = st.columns([3, 1])
     with col_up:
         uploaded = st.file_uploader(t('upload_perf'), type=['xlsx'])
@@ -355,13 +339,127 @@ elif selected_page == 'perf':
                     if save_perf_data(df_new):
                         st.session_state['perf_data'] = load_perf_data()
                         st.success("Success!")
+                        st.rerun()
             except Exception as e: st.error(f"Error: {e}")
     with col_dl:
         st.write(""); st.write("")
         st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template.xlsx")
     
-    if 'perf_data' in st.session_state:
-        st.dataframe(st.session_state['perf_data'], use_container_width=True)
+    # LOAD DATA
+    if 'perf_data' in st.session_state and not st.session_state['perf_data'].empty:
+        df = st.session_state['perf_data'].copy()
+        df['Tanggal'] = pd.to_datetime(df['Tanggal'])
+
+        # 2. FITUR DELETE DATA (REQ 5)
+        with st.expander(f"🗑️ {t('manage_data')}"):
+            c_del1, c_del2 = st.columns([3, 1])
+            del_dt = c_del1.date_input(t('del_date'), key='del_dt_picker')
+            if c_del2.button(t('btn_del')):
+                with st.spinner("Deleting..."):
+                    if delete_perf_data_by_date(del_dt):
+                        st.session_state['perf_data'] = load_perf_data()
+                        st.success("Data Deleted.")
+                        st.rerun()
+
+        # 3. FILTER LOGIC (REQ 6, 7, 8)
+        # Apply Global Date Filter First
+        mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
+        df = df.loc[mask]
+
+        # Sidebar Filter Khusus Performa
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔍 Filter Detail Driver")
+        
+        # Filter Level (Standard/Premium)
+        avail_levels = ["Standard", "Premium"]
+        sel_levels = st.sidebar.multiselect(t('filter_brand'), avail_levels, default=avail_levels)
+        
+        # Filter Jam Online
+        hour_opts = ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"]
+        sel_hour = st.sidebar.selectbox(t('filter_hour'), hour_opts)
+
+        # Filter Pendapatan (Logika Dinamis)
+        earn_opts = ["Semua"]
+        if "Standard" in sel_levels:
+            earn_opts.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
+        if "Premium" in sel_levels:
+            earn_opts.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
+        
+        # Hapus duplikat dan urutkan
+        earn_opts = list(dict.fromkeys(earn_opts))
+        sel_earn = st.sidebar.selectbox(t('filter_earn'), earn_opts)
+
+        # --- TERAPKAN FILTER ---
+        if sel_levels:
+            df = df[df['Merek'].isin(sel_levels)]
+        
+        # Logic Jam
+        if sel_hour == "< 7 Jam": df = df[df['Total Online Hours'] < 7]
+        elif sel_hour == "7 - 9 Jam": df = df[(df['Total Online Hours'] >= 7) & (df['Total Online Hours'] < 9)]
+        elif sel_hour == ">= 9 Jam": df = df[df['Total Online Hours'] >= 9]
+
+        # Logic Pendapatan
+        if sel_earn != "Semua":
+            # Standard Parsing
+            if "Standard < 300rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] < 300000)]
+            elif "Standard 300rb-400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 300000) & (df['Net Earnings'] < 400000)]
+            elif "Standard >= 400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 400000)]
+            # Premium Parsing
+            elif "Premium < 500rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] < 500000)]
+            elif "Premium 500rb-600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 500000) & (df['Net Earnings'] < 600000)]
+            elif "Premium >= 600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 600000)]
+
+        # --- PREPARE DISPLAY DATA ---
+        # Rename Merek -> Level (REQ 3)
+        df_display = df.rename(columns={'Merek': 'Level'})
+
+        # 4. TABEL SUMMARY (REQ 4)
+        st.subheader("📋 Rangkuman Per Driver (Summary)")
+        if not df_display.empty:
+            summary = df_display.groupby(['Nama Driver', 'Level']).agg({
+                'Net Earnings': 'sum',
+                'Total Completed Order': 'sum',
+                'Total Online Hours': 'sum',
+                'Tanggal': 'nunique'
+            }).reset_index()
+            summary.rename(columns={'Tanggal': 'Hari Kerja', 'Total Completed Order': 'Total Order'}, inplace=True)
+            
+            # Tampilkan Summary
+            st.dataframe(
+                summary, 
+                hide_index=True, 
+                use_container_width=True,
+                column_config={
+                    "Net Earnings": st.column_config.NumberColumn("Total Pendapatan", format="Rp %.0f"),
+                    "Total Online Hours": st.column_config.NumberColumn("Total Jam Online", format="%.1f")
+                }
+            )
+        else:
+            st.info("Data tidak ditemukan dengan filter ini.")
+
+        # 5. TABEL DETAIL HARIAN (REQ 1, 2, 3)
+        st.divider()
+        st.subheader("📝 Detail Transaksi Harian")
+        
+        # Format Tanggal jadi Date Only (REQ 2)
+        df_display['Tanggal'] = df_display['Tanggal'].dt.date
+        
+        # Tampilkan Detail
+        st.dataframe(
+            df_display,
+            hide_index=True, # REQ 1 (Hapus index 0,1,2..)
+            use_container_width=True,
+            column_config={
+                "Tanggal": st.column_config.DateColumn("Tanggal", format="YYYY-MM-DD"), # REQ 2
+                "Net Earnings": st.column_config.NumberColumn("Pendapatan Bersih", format="Rp %.0f"), # REQ 3 & 4
+                "Total Online Hours": st.column_config.NumberColumn("Jam Online", format="%.2f"),
+                "Total Trip Hours": st.column_config.NumberColumn("Jam Trip", format="%.2f"),
+                "Total Completed Order": st.column_config.NumberColumn("Order Selesai"),
+            }
+        )
+
+    else:
+        st.info(t('no_data'))
 
 # ==========================================
 # 7. HALAMAN 3: DATA DRIVER (TETAP)
