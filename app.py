@@ -111,21 +111,63 @@ if 'perf_data' not in st.session_state:
 st.set_page_config(page_title="EV Fleet Management System", layout="wide", initial_sidebar_state="expanded")
 
 # ==========================================
-# 3. SIDEBAR & NAVIGASI
+# 3. KAMUS BAHASA (DIKEMBALIKAN)
 # ==========================================
-# Variabel Global untuk Filter Tanggal
+trans = {
+    'ID': {
+        'nav_title': "Navigasi", 'menu_dash': "Dashboard", 'menu_perf': "Performa Driver", 'menu_data': "Data Driver",
+        'dash_title': "Dashboard Utama", 'filter_date': "Filter Tanggal", 'start_date': "Tanggal Mulai", 'end_date': "Tanggal Akhir",
+        'summary_all': "Ringkasan Gabungan (Semua Armada)", 'metrics_title': "Detail Per Level (Standard & Premium)", 'brand': "Level", 'platform': "Platform",
+        'rev': "Total Omset", 'orders': "Total Completed Order", 'cust_cancel': "Customer Cancelled", 'drv_cancel': "Driver Cancelled",
+        'avg_ord': "Rata-rata / Order", 'avg_day': "Rata-rata / Hari", 'drivers': "Jumlah Driver",
+        'chart_comp': "Grafik Perbandingan Omset", 'chart_plat': "Grafik Perbandingan Omset",
+        'chart_total': "Grafik Total Omset Harian (Gabungan)", 'chart_month': "Grafik Total Omset Bulanan",
+        'no_data': "Belum ada data. Silakan upload Excel.", 'no_data_range': "Tidak ada data pada rentang tanggal ini.",
+        'perf_title': "Analisa Performa Driver", 'upload_perf': "Upload Data Performa (.xlsx)", 'download_tmpl': "Download Template Excel",
+        'manage_data': "Kelola Data (Hapus per Tanggal)", 'del_date': "Pilih Tanggal", 'btn_del': "Hapus Data Permanen",
+        'search_driver': "Cari Driver (Nama)", 'filter_brand': "Filter Level", 'filter_plat': "Filter Platform",
+        'filter_earn': "Filter Pendapatan", 'filter_hour': "Filter Jam Online",
+        'data_title': "Data Driver", 'upload_data': "Upload Data Driver (.xlsx)", 'stat_total': "Total Driver", 'stat_active': "Active"
+    },
+    'CN': {
+        'nav_title': "导航 (Navigasi)", 'menu_dash': "仪表板 (Dashboard)", 'menu_perf': "司机表现 (Driver Performance)", 'menu_data': "司机数据 (Driver Data)",
+        'dash_title': "主仪表板 (Main Dashboard)", 'filter_date': "日期筛选 (Date Filter)", 'start_date': "开始日期 (Start Date)", 'end_date': "结束日期 (End Date)",
+        'summary_all': "综合摘要 (所有车队)", 'metrics_title': "各级别详情 (Detail by Level)", 'brand': "级别 (Level)", 'platform': "平台 (Platform)",
+        'rev': "总收入 (Total Revenue)", 'orders': "总完成订单 (Total Orders)", 'cust_cancel': "客户取消 (Cust Cancel)", 'drv_cancel': "司机取消 (Driver Cancel)",
+        'avg_ord': "平均订单 (Avg Order)", 'avg_day': "平均/天 (Avg/Day)", 'drivers': "司机总数 (Total Drivers)",
+        'chart_comp': "收入对比图表", 'chart_plat': "收入对比图表",
+        'chart_total': "每日总收入图表 (综合)", 'chart_month': "每月总收入图表",
+        'no_data': "暂无数据。请下载模板并上传 Excel。", 'no_data_range': "在此日期范围内没有数据。",
+        'perf_title': "司机表现分析 (Driver Performance Analysis)", 'upload_perf': "上传表现数据 (.xlsx)", 'download_tmpl': "下载 Excel 模板",
+        'manage_data': "数据管理 (按日期删除)", 'del_date': "选择日期", 'btn_del': "删除数据 (Delete Data)",
+        'search_driver': "搜索司机 (姓名)", 'filter_brand': "筛选级别 (Filter Level)", 'filter_plat': "筛选平台 (Filter Platform)",
+        'filter_earn': "筛选收入 (Filter Earnings)", 'filter_hour': "筛选在线时长 (Filter Online Hours)",
+        'data_title': "司机数据 (Driver Data)", 'upload_data': "上传司机数据 (.xlsx)", 'stat_total': "总司机", 'stat_active': "活跃 (Active)"
+    }
+}
+
+# ==========================================
+# 4. SIDEBAR & NAVIGASI
+# ==========================================
 start_d, end_d = None, None
 
 with st.sidebar:
-    st.header("Navigasi")
-    nav_options = {'dash': "Dashboard", 'perf': "Performa Driver", 'data': "Data Driver"}
+    # --- FITUR BAHASA DIKEMBALIKAN ---
+    lang_opt = st.radio("Language / 语言", ["ID", "CN"], horizontal=True, key="language")
+    
+    def t(key):
+        lang = st.session_state.get('language', 'ID')
+        return trans[lang].get(key, key)
+
+    st.markdown("---")
+    st.header(t('nav_title'))
+    nav_options = {'dash': t('menu_dash'), 'perf': t('menu_perf'), 'data': t('menu_data')}
     selected_page = st.radio("Menu", list(nav_options.keys()), format_func=lambda x: nav_options[x])
     
-    # --- REVISI 1: FILTER TANGGAL PINDAH KE SIDEBAR ---
+    # --- FILTER TANGGAL (TETAP DI SIDEBAR) ---
     st.markdown("---")
-    st.subheader("🗓️ Filter Global")
+    st.subheader(f"🗓️ {t('filter_date')}")
     
-    # Ambil range tanggal default dari data
     if not st.session_state['perf_data'].empty:
         df_temp = st.session_state['perf_data']
         df_temp['Tanggal'] = pd.to_datetime(df_temp['Tanggal'])
@@ -135,8 +177,8 @@ with st.sidebar:
         min_date = pd.to_datetime('today').date()
         max_date = pd.to_datetime('today').date()
 
-    start_d = st.date_input("Tanggal Mulai", min_date)
-    end_d = st.date_input("Tanggal Akhir", max_date)
+    start_d = st.date_input(t('start_date'), min_date)
+    end_d = st.date_input(t('end_date'), max_date)
 
 
 def generate_excel_template(type_data):
@@ -154,25 +196,25 @@ def format_rupiah(value):
     return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. HALAMAN 1: DASHBOARD (REVISI FINAL)
+# 5. HALAMAN 1: DASHBOARD (REVISI LENGKAP)
 # ==========================================
 if selected_page == 'dash':
-    st.title("Dashboard Utama")
+    st.title(t('dash_title'))
     
     if 'perf_data' not in st.session_state or st.session_state['perf_data'].empty:
-        st.info("Belum ada data. Silakan upload Excel.")
+        st.info(t('no_data'))
     else:
         df = st.session_state['perf_data'].copy()
         df['Tanggal'] = pd.to_datetime(df['Tanggal'])
         
         if 'Platform' not in df.columns: df['Platform'] = 'Unknown'
 
-        # Filter Data berdasarkan Sidebar
+        # Filter Data
         mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
         df_filt = df.loc[mask]
         
         if df_filt.empty:
-            st.error("Tidak ada data pada rentang tanggal ini.")
+            st.error(t('no_data_range'))
         else:
             # --- CALCULATE METRICS ---
             tot_omset = df_filt['Net Earnings'].sum()
@@ -185,23 +227,22 @@ if selected_page == 'dash':
             unique_days = df_filt['Tanggal'].nunique()
             avg_earn_per_day = tot_omset / unique_days if unique_days > 0 else 0
 
-            # --- REVISI 2 & 3: RINGKASAN GABUNGAN + PIE CHART ---
-            st.subheader("📊 Ringkasan Gabungan (Semua Armada)")
+            # --- RINGKASAN GABUNGAN ---
+            st.subheader(f"📊 {t('summary_all')}")
             
-            # Buat Container Utama: Kiri (Angka), Kanan (Pie Chart Standard vs Premium)
             col_main_metrics, col_main_pie = st.columns([2.5, 1])
             
             with col_main_metrics:
                 # Baris 1
                 r1c1, r1c2, r1c3 = st.columns(3)
-                r1c1.metric("Total Omset", format_rupiah(tot_omset))
-                r1c2.metric("Total Order", f"{tot_order}")
-                r1c3.metric("Jumlah Driver", f"{tot_driver}")
+                r1c1.metric(t('rev'), format_rupiah(tot_omset))
+                r1c2.metric(t('orders'), f"{tot_order}")
+                r1c3.metric(t('drivers'), f"{tot_driver}")
                 
                 # Baris 2
                 r2c1, r2c2, r2c3 = st.columns(3)
-                r2c1.metric("Rata-rata / Hari", format_rupiah(avg_earn_per_day))
-                r2c2.metric("Rata-rata / Order", format_rupiah(avg_earn_per_order))
+                r2c1.metric(t('avg_day'), format_rupiah(avg_earn_per_day))
+                r2c2.metric(t('avg_ord'), format_rupiah(avg_earn_per_order))
                 r2c3.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
 
             with col_main_pie:
@@ -209,151 +250,148 @@ if selected_page == 'dash':
                 pie_data_level = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
                 if not pie_data_level.empty:
                     fig_pie_main = px.pie(pie_data_level, values='Net Earnings', names='Merek', 
-                                          title="Komposisi Omset", hole=0.4,
+                                          title="Standard vs Premium", hole=0.4,
                                           color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig_pie_main.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False)
-                    # Menambahkan label persentase di dalam chart
                     fig_pie_main.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig_pie_main, use_container_width=True)
 
             st.markdown("---")
 
-            # --- REVISI 4: DETAIL PER LEVEL (Tanpa Pie Chart Kecil) ---
-            st.subheader("🚗 Detail Per Level (Standard & Premium)")
+            # --- DETAIL PER LEVEL (METRIC LENGKAP DIKEMBALIKAN) ---
+            st.subheader(f"🚗 {t('metrics_title')}")
             target_levels = ["Standard", "Premium"]
             
             for level in target_levels:
                 level_df = df_filt[df_filt['Merek'] == level]
                 if not level_df.empty:
                     st.markdown(f"**Level: {level}**")
-                    # Metrics Level Saja (Tanpa Pie Chart)
+                    
+                    # Metrics Calculation
                     l_omset = level_df['Net Earnings'].sum()
                     l_order = level_df['Total Completed Order'].sum()
+                    l_cust = level_df['Total Customer Cancelled'].sum() # Dikembalikan
+                    l_drv = level_df['Total Driver Cancelled'].sum()    # Dikembalikan
+                    l_drivers = level_df['Nama Driver'].nunique()       # Dikembalikan
+                    
                     l_avg_ord = l_omset / l_order if l_order > 0 else 0
                     l_days = level_df['Tanggal'].nunique()
                     l_avg_day = l_omset / l_days if l_days > 0 else 0
                     
+                    # Layout Lengkap (4 Kolom x 2 Baris)
                     c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Total Omset", format_rupiah(l_omset))
-                    c2.metric("Total Order", f"{l_order}")
-                    c3.metric("Rata-rata / Order", format_rupiah(l_avg_ord))
-                    c4.metric("Rata-rata / Hari", format_rupiah(l_avg_day))
+                    c1.metric(t('rev'), format_rupiah(l_omset))
+                    c2.metric(t('orders'), f"{l_order}")
+                    c3.metric(t('avg_ord'), format_rupiah(l_avg_ord))
+                    c4.metric(t('avg_day'), format_rupiah(l_avg_day))
+                    
+                    c5, c6, c7, c8 = st.columns(4)
+                    c5.metric(t('cust_cancel'), f"{l_cust}")
+                    c6.metric(t('drv_cancel'), f"{l_drv}")
+                    c7.metric(t('drivers'), f"{l_drivers}")
+                    c8.write("") # Spacer
+
                     st.divider()
 
-            # --- REVISI 5, 6, 7: GRAFIK DIPERBAIKI (Format Tanggal) ---
+            # --- GRAFIK (FORMAT TANGGAL RAPI) ---
             
-            # Format Data Harian: Group by Tanggal (Tanpa Jam)
             df_filt['DateStr'] = df_filt['Tanggal'].dt.strftime('%Y-%m-%d')
             df_daily_agg = df_filt.groupby(['DateStr', 'Merek', 'Platform'])['Net Earnings'].sum().reset_index()
 
             col_g1, col_g2 = st.columns(2)
             
-            # Grafik 1: Standard
             with col_g1:
-                st.subheader("Grafik Standard (Gojek vs Grab)")
+                st.subheader(f"Standard (Gojek vs Grab)")
                 data_std = df_daily_agg[df_daily_agg['Merek'] == 'Standard']
                 if not data_std.empty:
                     fig_std = px.line(data_std, x='DateStr', y='Net Earnings', color='Platform', markers=True)
-                    # Format Sumbu X Harian (DD-MM-YYYY)
-                    fig_std.update_xaxes(
-                        tickformat="%d-%b",
-                        dtick="D1"  # Interval per hari
-                    )
-                    fig_std.update_layout(xaxis_title="Tanggal", yaxis_title="Omset")
+                    fig_std.update_xaxes(tickformat="%d-%b", dtick="D1")
+                    fig_std.update_layout(xaxis_title="Date", yaxis_title="Omset")
                     st.plotly_chart(fig_std, use_container_width=True)
                 else:
-                    st.info("Data Standard Kosong.")
+                    st.info("No Data Standard.")
 
-            # Grafik 2: Premium
             with col_g2:
-                st.subheader("Grafik Premium (Gojek vs Grab)")
+                st.subheader(f"Premium (Gojek vs Grab)")
                 data_prm = df_daily_agg[df_daily_agg['Merek'] == 'Premium']
                 if not data_prm.empty:
                     fig_prm = px.line(data_prm, x='DateStr', y='Net Earnings', color='Platform', markers=True)
                     fig_prm.update_xaxes(tickformat="%d-%b", dtick="D1")
-                    fig_prm.update_layout(xaxis_title="Tanggal", yaxis_title="Omset")
+                    fig_prm.update_layout(xaxis_title="Date", yaxis_title="Omset")
                     st.plotly_chart(fig_prm, use_container_width=True)
                 else:
-                    st.info("Data Premium Kosong.")
+                    st.info("No Data Premium.")
             
-            # Grafik 3: Total Omset Harian (Gabungan)
-            st.subheader("Grafik Total Omset Harian (Gabungan)")
-            # Grouping Ulang agar tidak ada data ganda di tanggal yang sama
+            st.subheader(t('chart_total'))
             df_total_daily = df_filt.groupby('DateStr')['Net Earnings'].sum().reset_index()
-            
             fig_d = px.line(df_total_daily, x='DateStr', y='Net Earnings', markers=True)
-            fig_d.update_xaxes(tickformat="%d-%b", dtick="D1") # Format Tanggal Bersih
-            fig_d.update_layout(xaxis_title="Tanggal", yaxis_title="Total Omset")
+            fig_d.update_xaxes(tickformat="%d-%b", dtick="D1")
+            fig_d.update_layout(xaxis_title="Date", yaxis_title="Total Omset")
             st.plotly_chart(fig_d, use_container_width=True)
             
-            # Grafik 4: Total Omset Bulanan (Format MMM'YY)
-            st.subheader("Grafik Total Omset Bulanan")
-            # Buat kolom Bulan yang bisa diurutkan
+            st.subheader(t('chart_month'))
             df_filt['MonthObj'] = df_filt['Tanggal'].dt.to_period('M')
             df_mon = df_filt.groupby('MonthObj')['Net Earnings'].sum().reset_index()
-            # Ubah ke String format (Dec'25, Jan'26)
             df_mon['MonthLabel'] = df_mon['MonthObj'].dt.strftime("%b'%y")
-            df_mon['MonthStr'] = df_mon['MonthObj'].astype(str) # Helper sorting
+            df_mon['MonthStr'] = df_mon['MonthObj'].astype(str)
 
             fig_m = px.line(df_mon, x='MonthLabel', y='Net Earnings', markers=True)
-            fig_m.update_layout(xaxis_title="Bulan", yaxis_title="Total Omset")
+            fig_m.update_layout(xaxis_title="Month", yaxis_title="Total Omset")
             st.plotly_chart(fig_m, use_container_width=True)
 
 # ==========================================
-# 6. HALAMAN 2: PERFORMA DRIVER (TIDAK DIUBAH)
+# 6. HALAMAN 2: PERFORMA DRIVER (TETAP)
 # ==========================================
 elif selected_page == 'perf':
-    st.title("Analisa Performa Driver")
+    st.title(t('perf_title'))
     
     col_up, col_dl = st.columns([3, 1])
     with col_up:
-        uploaded = st.file_uploader("Upload Data Performa (.xlsx)", type=['xlsx'])
+        uploaded = st.file_uploader(t('upload_perf'), type=['xlsx'])
         if uploaded:
             try:
                 df_new = pd.read_excel(uploaded)
-                with st.spinner("Menyimpan ke Database..."):
+                with st.spinner("Saving..."):
                     if save_perf_data(df_new):
                         st.session_state['perf_data'] = load_perf_data()
-                        st.success("Sukses Upload!")
+                        st.success("Success!")
             except Exception as e: st.error(f"Error: {e}")
     with col_dl:
         st.write(""); st.write("")
-        st.download_button("📥 Download Template", generate_excel_template('perf'), "template.xlsx")
+        st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template.xlsx")
     
     if 'perf_data' in st.session_state:
         st.dataframe(st.session_state['perf_data'], use_container_width=True)
 
 # ==========================================
-# 7. HALAMAN 3: DATA DRIVER (TIDAK DIUBAH)
+# 7. HALAMAN 3: DATA DRIVER (TETAP)
 # ==========================================
 elif selected_page == 'data':
-    st.title("Data Driver")
+    st.title(t('data_title'))
     
     col_up, col_dl = st.columns([3, 1])
     with col_up:
-        up_driver = st.file_uploader("Upload Data Driver (.xlsx)", type=['xlsx'])
+        up_driver = st.file_uploader(t('upload_data'), type=['xlsx'])
         if up_driver:
             try:
                 temp_df = pd.read_excel(up_driver)
                 if 'Nama Driver' in temp_df.columns and temp_df['Nama Driver'].duplicated().any():
-                    st.error("GAGAL: Nama Driver duplikat!")
+                    st.error("Error: Duplicate Name")
                 else:
                     st.session_state['driver_data'] = temp_df
-                    st.success("Sukses Upload!")
+                    st.success("Success!")
             except Exception as e: st.error(f"Error: {e}")
 
     with col_dl:
         st.write(""); st.write("")
-        st.download_button("📥 Template Driver", generate_excel_template('driver'), "template_driver.xlsx")
+        st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('driver'), "template_driver.xlsx")
         
     if 'driver_data' in st.session_state:
         df_d = st.session_state['driver_data']
-        # Metric Sederhana
         k1, k2 = st.columns(2)
-        k1.metric("Total Driver", len(df_d))
+        k1.metric(t('stat_total'), len(df_d))
         active = len(df_d[df_d['Status'] == 'Active']) if 'Status' in df_d.columns else 0
-        k2.metric("Active", active)
-        
+        k2.metric(t('stat_active'), active)
         st.data_editor(df_d, num_rows="dynamic", use_container_width=True)
     else:
-        st.info("Belum ada data driver.")
+        st.info(t('no_data'))
