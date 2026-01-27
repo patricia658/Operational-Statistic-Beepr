@@ -124,7 +124,6 @@ st.set_page_config(
 # ==========================================
 with st.sidebar:
     st.header("Navigasi")
-    # Menu tetap dibiarkan ada sesuai permintaan "jangan dihapus dulu"
     nav_options = {'dash': "Dashboard", 'perf': "Performa Driver", 'data': "Data Driver"}
     selected_page = st.radio("Menu", list(nav_options.keys()), format_func=lambda x: nav_options[x])
 
@@ -143,7 +142,7 @@ def format_rupiah(value):
     return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. HALAMAN 1: DASHBOARD (REVISI SESUAI GAMBAR)
+# 5. HALAMAN 1: DASHBOARD (DIPERBARUI SESUAI GAMBAR)
 # ==========================================
 if selected_page == 'dash':
     st.title("Dashboard Utama")
@@ -157,7 +156,7 @@ if selected_page == 'dash':
         if 'Platform' not in df.columns:
             df['Platform'] = 'Unknown'
 
-        # --- REVISI 1: TAMPILAN FILTER TANGGAL (ATAS BAWAH / SIDE-BY-SIDE) ---
+        # --- 1. FILTER TANGGAL (Side by Side) ---
         with st.container():
             st.subheader("Filter Tanggal")
             c1, c2 = st.columns(2)
@@ -174,33 +173,29 @@ if selected_page == 'dash':
         else:
             st.divider()
             
-            # --- HITUNG METRICS UTAMA ---
+            # --- CALCULATE METRICS ---
             tot_omset = df_filt['Net Earnings'].sum()
             tot_order = df_filt['Total Completed Order'].sum()
             tot_cust_canc = df_filt['Total Customer Cancelled'].sum()
             tot_drv_canc = df_filt['Total Driver Cancelled'].sum()
             tot_driver = df_filt['Nama Driver'].nunique()
-            tot_hours = df_filt['Total Online Hours'].sum()
-            avg_hours = df_filt['Total Online Hours'].mean()
-
-            # Metric Tambahan (Sesuai Gambar)
-            # Rata-rata per order = Total Omset / Total Order
+            
+            # Metric Baru: Rata-rata
             avg_earn_per_order = tot_omset / tot_order if tot_order > 0 else 0
-            # Rata-rata per hari = Total Omset / Jumlah Hari Unik
             unique_days = df_filt['Tanggal'].nunique()
             avg_earn_per_day = tot_omset / unique_days if unique_days > 0 else 0
 
+            # --- 2. RINGKASAN GABUNGAN ---
             st.subheader("📊 Ringkasan Gabungan (Semua Armada)")
             
-            # Baris 1 Metric
+            # Baris 1: Metric Utama + Rata-rata
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Total Omset", format_rupiah(tot_omset))
             m2.metric("Total Completed Order", f"{tot_order}")
-            # REVISI: Tambah Rata2 per Order & Rata2 per Hari
             m3.metric("Rata-rata / Order", format_rupiah(avg_earn_per_order))
             m4.metric("Rata-rata / Hari", format_rupiah(avg_earn_per_day))
             
-            # Baris 2 Metric (Opsional, merapikan sisa metric)
+            # Baris 2: Metric Tambahan
             m5, m6, m7 = st.columns(3)
             m5.metric("Customer Cancelled", f"{tot_cust_canc}")
             m6.metric("Driver Cancelled", f"{tot_drv_canc}")
@@ -208,14 +203,12 @@ if selected_page == 'dash':
             
             st.markdown("---")
 
-            # --- REVISI 3 & 4: DETAIL PER LEVEL (STANDARD & PREMIUM) ---
+            # --- 3. DETAIL PER LEVEL (STANDARD & PREMIUM) ---
             st.subheader("🚗 Detail Per Level (Standard & Premium)")
             
-            # Loop untuk Standard dan Premium
             target_levels = ["Standard", "Premium"]
             
             for level in target_levels:
-                # Filter data berdasarkan level
                 level_df = df_filt[df_filt['Merek'] == level]
                 
                 if not level_df.empty:
@@ -228,41 +221,45 @@ if selected_page == 'dash':
                     l_days = level_df['Tanggal'].nunique()
                     l_avg_day = l_omset / l_days if l_days > 0 else 0
                     
-                    # Layout Kolom: Kiri (Angka), Kanan (Pie Chart)
+                    # Layout: Metrics di Kiri (2/3), Pie Chart di Kanan (1/3)
                     col_metrics, col_chart = st.columns([2, 1])
                     
                     with col_metrics:
+                        # Baris 1 Metric Level
                         c1, c2 = st.columns(2)
                         c1.metric("Total Omset", format_rupiah(l_omset))
                         c2.metric("Total Order", f"{l_order}")
                         
+                        # Baris 2 Metric Level
                         c3, c4 = st.columns(2)
                         c3.metric("Rata-rata / Order", format_rupiah(l_avg_ord))
                         c4.metric("Rata-rata / Hari", format_rupiah(l_avg_day))
 
+                        # Baris 3 Metric Level
                         c5, c6 = st.columns(2)
                         c5.metric("Cust Cancel", level_df['Total Customer Cancelled'].sum())
                         c6.metric("Driver Cancel", level_df['Total Driver Cancelled'].sum())
                     
                     with col_chart:
-                        # REVISI: Pie Chart per Level (Misal: Proporsi Omset berdasarkan Platform)
-                        # Agregasi data untuk Pie Chart
+                        # Pie Chart: Proporsi Omset berdasarkan Platform (Gojek vs Grab)
                         pie_data = level_df.groupby('Platform')['Net Earnings'].sum().reset_index()
                         fig_pie = px.pie(pie_data, values='Net Earnings', names='Platform', 
                                          title=f"Proporsi Omset {level}", 
                                          hole=0.4)
-                        fig_pie.update_layout(showlegend=False, margin=dict(t=30, b=0, l=0, r=0), height=250)
+                        # Hide legend agar compact
+                        fig_pie.update_layout(showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5), margin=dict(t=40, b=0, l=0, r=0), height=300)
                         st.plotly_chart(fig_pie, use_container_width=True)
                     
                     st.divider()
 
-            # --- REVISI 5 & 6: GRAFIK BAWAH ---
-            # Siapkan Data Harian (DateOnly) - Pastikan tidak ada jam
+            # --- 4. GRAFIK PERBANDINGAN & TOTAL ---
+            # Siapkan Data Harian (DateOnly)
             df_filt['DateOnly'] = df_filt['Tanggal'].dt.strftime('%Y-%m-%d')
             
-            # Grouping Data
+            # Grouping Data Utama
             df_chart = df_filt.groupby(['DateOnly', 'Merek', 'Platform'])['Net Earnings'].sum().reset_index()
 
+            # Kolom untuk 2 Grafik Perbandingan
             col_g1, col_g2 = st.columns(2)
             
             # Grafik 1: Standard (Gojek vs Grab)
@@ -287,22 +284,24 @@ if selected_page == 'dash':
                 else:
                     st.info("Tidak ada data Premium.")
             
-            # Grafik 3: Total Omset Harian (Gabungan) - "Ini Ok"
+            # Grafik 3: Total Omset Harian (Gabungan)
             st.subheader("Grafik Total Omset Harian (Gabungan)")
             df_day = df_filt.groupby(['DateOnly'])['Net Earnings'].sum().reset_index()
             fig_d = px.line(df_day, x='DateOnly', y='Net Earnings', markers=True)
-            fig_d.update_layout(xaxis_title="Tanggal (Harian)", yaxis_title="Total Omset")
+            # Pastikan format sumbu X hanya tanggal
+            fig_d.update_layout(xaxis_title="Tanggal", yaxis_title="Total Omset", xaxis=dict(tickformat="%d-%m-%Y"))
             st.plotly_chart(fig_d, use_container_width=True)
             
-            # Grafik 4: Bulanan
+            # Grafik 4: Total Omset Bulanan
             st.subheader("Grafik Total Omset Bulanan")
             df_filt['Month'] = df_filt['Tanggal'].dt.strftime('%Y-%m')
             df_mon = df_filt.groupby(['Month'])['Net Earnings'].sum().reset_index()
             fig_m = px.line(df_mon, x='Month', y='Net Earnings', markers=True)
+            fig_m.update_layout(xaxis_title="Bulan", yaxis_title="Total Omset")
             st.plotly_chart(fig_m, use_container_width=True)
 
 # ==========================================
-# 6. HALAMAN LAIN (TETAP SAMA)
+# 6. HALAMAN LAIN (TETAP SAMA / TIDAK DIUBAH)
 # ==========================================
 elif selected_page == 'perf':
     st.title("Analisa Performa Driver")
