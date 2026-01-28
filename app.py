@@ -27,38 +27,26 @@ except:
     st.error("Secrets belum lengkap. Pastikan Supabase & Email sudah disetting.")
     st.stop()
 
-# --- FUNGSI UPLOAD FOTO (DEBUG VERSION) ---
+# --- FUNGSI UPLOAD FOTO ---
 def upload_file_to_supabase(uploaded_file):
     if uploaded_file is None:
         return None
     try:
-        # 1. Bersihkan nama file
         file_ext = uploaded_file.name.split('.')[-1]
         file_name = f"{uuid.uuid4()}.{file_ext}"
         bucket_name = "car_documents"
-
-        # 2. Baca File
         file_bytes = uploaded_file.getvalue()
         
-        # 3. Proses Upload
-        # st.write("Sedang mengirim ke Supabase Storage...") # Debug msg
         response = supabase.storage.from_(bucket_name).upload(
             path=file_name, 
             file=file_bytes, 
             file_options={"content-type": uploaded_file.type}
         )
         
-        # 4. Ambil Link
         public_url = supabase.storage.from_(bucket_name).get_public_url(file_name)
         return public_url
-
     except Exception as e:
-        # Tampilkan Error Jelas
         st.error(f"❌ Error Upload Storage: {str(e)}")
-        if "403" in str(e) or "policy" in str(e):
-            st.warning("⚠️ Masalah Izin: Jalankan kode SQL 'Jurus Terakhir' di bawah.")
-        if "404" in str(e):
-            st.warning("⚠️ Bucket Hilang: Pastikan nama bucket 'car_documents' (huruf kecil semua).")
         return None
 
 # --- FUNGSI EMAIL ---
@@ -181,12 +169,10 @@ def save_car_data(df):
         for col in ["tanggal_pembelian", "tanggal_pajak", "tanggal_ganti_plat", "asuransi_mulai", "asuransi_habis"]:
             if col in df_db.columns:
                 df_db[col] = pd.to_datetime(df_db[col], errors="coerce").dt.strftime("%Y-%m-%d")
-        
-        # EXECUTE INSERT
         supabase.table("car_data").upsert(df_db.to_dict('records'), on_conflict="kode_mobil").execute()
         return True
     except Exception as e:
-        st.error(f"Gagal simpan database: {e}") # Debugging Database
+        st.error(f"Gagal simpan database: {e}")
         return False
 
 def delete_car_by_code(code):
@@ -515,7 +501,6 @@ elif selected_page == 'perf':
             summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah)
             summ['Earning Rata2'] = summ['Avg'].apply(format_rupiah)
             
-            # Index No
             summ.reset_index(drop=True, inplace=True)
             summ.index += 1
             
@@ -542,7 +527,7 @@ elif selected_page == 'perf':
         st.dataframe(df_disp.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
 
 # ==========================================
-# 7. HALAMAN 3: DATA DRIVER (BARU + UPDATE)
+# 7. HALAMAN 3: DATA DRIVER
 # ==========================================
 elif selected_page == 'data':
     st.title(t('data_title'))
@@ -570,6 +555,11 @@ elif selected_page == 'data':
     m3.metric(t('stat_resign'), resign)
     
     st.divider()
+
+    # --- FILTER DRIVER (NEW) ---
+    if not df_d.empty:
+        drv_filter = st.multiselect("Filter Status Driver", ["Active", "Resigned"], default=["Active", "Resigned"])
+        df_d = df_d[df_d['Status'].isin(drv_filter)]
     
     # INPUT MANUAL & DELETE MANUAL
     col_in, col_del = st.columns(2)
@@ -603,15 +593,22 @@ elif selected_page == 'data':
     if not df_d.empty:
         df_show = df_d.reset_index(drop=True)
         df_show.index += 1
-        st.dataframe(df_show, use_container_width=True)
+        
+        # --- PEWARNAAN DRIVER ---
+        def style_drv(row):
+            color = ''
+            if row['Status'] == 'Active': color = '#d4edda' # Hijau
+            elif row['Status'] == 'Resigned': color = '#f8d7da' # Merah
+            return [f'background-color: {color}'] * len(row)
+
+        st.dataframe(df_show.style.apply(style_drv, axis=1), use_container_width=True)
 
 # ==========================================
-# 8. HALAMAN 4: DATA MOBIL (VALIDASI ERROR)
+# 8. HALAMAN 4: DATA MOBIL
 # ==========================================
 elif selected_page == 'car':
     st.title(t('car_title'))
     
-    # 1. NOTIFIKASI & EMAIL
     with st.expander(f"📧 {t('reminder_check')}"):
         st.write(t('reminder_desc'))
         if st.button("Check & Send Email"):
@@ -644,21 +641,16 @@ elif selected_page == 'car':
         if upl:
             try:
                 temp_df = pd.read_excel(upl)
-                
-                # --- VALIDASI KOLOM (BARU) ---
                 required_cols = list(CAR_COL_MAP.keys())
                 missing_cols = [col for col in required_cols if col not in temp_df.columns]
-                
                 if missing_cols:
-                    st.error(f"❌ Upload Gagal! Kolom berikut tidak ditemukan di Excel:\n {', '.join(missing_cols)}")
-                    st.info("💡 Solusi: Download Template Excel terbaru di sebelah kanan dan gunakan format tersebut.")
+                    st.error(f"❌ Upload Gagal! Kolom tidak ditemukan: {', '.join(missing_cols)}")
                 else:
                     if save_car_data(temp_df):
                         st.session_state['car_data'] = load_car_data()
-                        st.success("✅ Upload Berhasil! Data mobil telah disimpan.")
+                        st.success("✅ Upload Berhasil!")
                         st.rerun()
-            except Exception as e:
-                st.error(f"Terjadi kesalahan saat membaca file: {e}")
+            except Exception as e: st.error(f"Error: {e}")
 
     with c_dl:
         st.write(""); st.write("")
@@ -679,6 +671,11 @@ elif selected_page == 'car':
     k5.metric(t('stat_car_unused'), uns_c)
 
     st.divider()
+
+    # --- FILTER ARMADA (NEW) ---
+    if not df_c.empty:
+        car_filter = st.multiselect("Filter Status Mobil", ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], default=["Active", "Maintenance", "Rusak", "Tidak Dipakai"])
+        df_c = df_c[df_c['Status Mobil'].isin(car_filter)]
 
     ci, cd = st.columns(2)
     with ci:
@@ -703,12 +700,12 @@ elif selected_page == 'car':
                     c_ins_s = st.date_input("Asuransi Mulai")
                     c_ins_e = st.date_input("Asuransi Habis")
                     c_rem = st.text_input("Reminder")
-                    c_doc_file = st.file_uploader("Upload Dokumen/Foto (STNK/Polis)", type=['png', 'jpg', 'jpeg', 'pdf'])
+                    c_doc_file = st.file_uploader("Upload Dokumen/Foto", type=['png', 'jpg', 'jpeg', 'pdf'])
 
                 if st.form_submit_button(t('btn_add_car')):
                     doc_url = ""
                     if c_doc_file:
-                        with st.spinner("Mengupload foto..."):
+                        with st.spinner("Uploading..."):
                             url = upload_file_to_supabase(c_doc_file)
                             if url: doc_url = url
                     
@@ -718,14 +715,8 @@ elif selected_page == 'car':
                         "Warna Mobil": c_col, "No Rangka": c_chassis, "No Mesin": c_engine, 
                         "Tanggal Pajak Tahunan": c_tax, "Tanggal Ganti Plat": c_plat_dt,
                         "Status Mobil": c_stat, "Nama Asuransi": c_ins_n, "Tanggal Mulai Asuransi": c_ins_s,
-                        "Tanggal Habis Asuransi": c_ins_e, "Reminder": c_rem, 
-                        "Dokumen": doc_url
+                        "Tanggal Habis Asuransi": c_ins_e, "Reminder": c_rem, "Dokumen": doc_url
                     }])
-                    
-                    # Validasi Duplikat (Manual Check)
-                    if not df_c.empty and c_code in df_c['Kode Mobil'].values:
-                        st.warning(f"⚠️ Kode Mobil '{c_code}' sudah ada! Data akan di-update.")
-                    
                     if save_car_data(new_car):
                         st.session_state['car_data'] = load_car_data()
                         st.success("Saved!")
@@ -740,10 +731,23 @@ elif selected_page == 'car':
                         st.session_state['car_data'] = load_car_data()
                         st.success("Deleted!")
                         st.rerun()
-            else: st.info("No Data")
 
     st.markdown("### List Armada")
     if not df_c.empty:
         df_show_c = df_c.reset_index(drop=True)
         df_show_c.index += 1
-        st.dataframe(df_show_c, use_container_width=True, column_config={"Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")})
+        
+        # --- PEWARNAAN ARMADA ---
+        def style_car(row):
+            color = ''
+            stat = row['Status Mobil']
+            if stat == 'Active': color = '#d4edda' # Hijau
+            elif stat == 'Rusak': color = '#f8d7da' # Merah
+            elif stat == 'Maintenance': color = '#fff3cd' # Kuning
+            return [f'background-color: {color}'] * len(row)
+
+        st.dataframe(
+            df_show_c.style.apply(style_car, axis=1), 
+            use_container_width=True, 
+            column_config={"Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")}
+        )
