@@ -4,7 +4,7 @@ import plotly.express as px
 import numpy as np
 import io
 import smtplib
-import uuid  # BARU: Untuk nama file unik
+import uuid  # Untuk nama file unik
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -27,28 +27,23 @@ except:
     st.error("Secrets belum lengkap. Pastikan Supabase & Email sudah disetting.")
     st.stop()
 
-# --- FUNGSI UPLOAD FOTO (BARU) ---
+# --- FUNGSI UPLOAD FOTO ---
 def upload_file_to_supabase(uploaded_file):
     if uploaded_file is None:
         return None
     try:
-        # Nama file unik biar gak bentrok
         file_ext = uploaded_file.name.split('.')[-1]
         file_name = f"{uuid.uuid4()}.{file_ext}"
-        bucket_name = "car_documents" # Nama bucket yang kamu buat di Supabase
+        bucket_name = "car_documents" # Pastikan bucket ini sudah dibuat "Public" di Supabase
 
-        # Baca & Upload
         file_bytes = uploaded_file.getvalue()
         supabase.storage.from_(bucket_name).upload(file_name, file_bytes, {"content-type": uploaded_file.type})
-        
-        # Ambil Link Public
-        public_url = supabase.storage.from_(bucket_name).get_public_url(file_name)
-        return public_url
+        return supabase.storage.from_(bucket_name).get_public_url(file_name)
     except Exception as e:
         st.error(f"Gagal upload foto: {e}")
         return None
 
-# --- FUNGSI KIRIM EMAIL ---
+# --- FUNGSI EMAIL ---
 def send_email_notification(subject, body_text):
     if not EMAIL_SENDER or not EMAIL_PASSWORD:
         st.error("Settingan email belum ada di secrets.toml!")
@@ -70,7 +65,7 @@ def send_email_notification(subject, body_text):
         st.error(f"Gagal kirim email: {e}")
         return False
 
-# --- MAPPING & FUNGSI DATABASE ---
+# --- MAPPING DATA ---
 COL_MAP = {
     "Tanggal": "tanggal", "Nama Driver": "nama_driver", "Kode PT": "kode_pt",
     "Plat No": "plat_no", "Merek": "merek", "Platform": "platform",
@@ -87,17 +82,19 @@ DRIVER_COL_MAP = {
 }
 REV_DRIVER_COL_MAP = {v: k for k, v in DRIVER_COL_MAP.items()}
 
+# [UPDATE] Menambahkan Merek Mobil
 CAR_COL_MAP = {
-    "Tanggal Pembelian": "tanggal_pembelian", "Kode Mobil": "kode_mobil", "Type Mobil": "type_mobil",
-    "Tahun Produksi": "tahun_produksi", "Warna Mobil": "warna_mobil", "No Rangka": "no_rangka",
-    "No Mesin": "no_mesin", "Tanggal Pajak Tahunan": "tanggal_pajak", "Tanggal Ganti Plat": "tanggal_ganti_plat",
-    "Status Mobil": "status_mobil", "Nama Asuransi": "nama_asuransi",
+    "Tanggal Pembelian": "tanggal_pembelian", "Merek Mobil": "merek_mobil", "Kode Mobil": "kode_mobil", 
+    "Type Mobil": "type_mobil", "Tahun Produksi": "tahun_produksi", "Warna Mobil": "warna_mobil", 
+    "No Rangka": "no_rangka", "No Mesin": "no_mesin", "Tanggal Pajak Tahunan": "tanggal_pajak", 
+    "Tanggal Ganti Plat": "tanggal_ganti_plat", "Status Mobil": "status_mobil", "Nama Asuransi": "nama_asuransi",
     "Tanggal Mulai Asuransi": "asuransi_mulai", "Tanggal Habis Asuransi": "asuransi_habis",
     "Reminder": "reminder", "Dokumen": "dokumen"
 }
 REV_CAR_COL_MAP = {v: k for k, v in CAR_COL_MAP.items()}
 CAR_RENAME_MAP = {"BYD Atto 1": "Standard", "Geely EX5 Max": "Premium"}
 
+# --- FUNGSI LOAD & SAVE ---
 def load_perf_data():
     try:
         response = supabase.table("perf_data").select("*").execute()
@@ -674,6 +671,7 @@ elif selected_page == 'car':
                 c1, c2 = st.columns(2)
                 with c1:
                     c_buy = st.date_input("Tanggal Pembelian")
+                    c_brand = st.text_input("Merek Mobil") # NEW
                     c_code = st.text_input("Kode Mobil")
                     c_type = st.text_input("Type Mobil")
                     c_year = st.text_input("Tahun Produksi")
@@ -689,7 +687,7 @@ elif selected_page == 'car':
                     c_ins_e = st.date_input("Asuransi Habis")
                     c_rem = st.text_input("Reminder")
                     
-                    # --- PERUBAHAN DISINI (GANTI TEXT INPUT JADI FILE UPLOADER) ---
+                    # --- UPLOAD FOTO ---
                     c_doc_file = st.file_uploader("Upload Dokumen/Foto (STNK/Polis)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
                 if st.form_submit_button(t('btn_add_car')):
@@ -701,7 +699,7 @@ elif selected_page == 'car':
                             if url: doc_url = url
                     
                     new_car = pd.DataFrame([{
-                        "Tanggal Pembelian": c_buy, "Kode Mobil": c_code, "Type Mobil": c_type,
+                        "Tanggal Pembelian": c_buy, "Merek Mobil": c_brand, "Kode Mobil": c_code, "Type Mobil": c_type,
                         "Tahun Produksi": c_year, "Warna Mobil": c_col, "No Rangka": c_chassis,
                         "No Mesin": c_engine, "Tanggal Pajak Tahunan": c_tax, "Tanggal Ganti Plat": c_plat,
                         "Status Mobil": c_stat, "Nama Asuransi": c_ins_n, "Tanggal Mulai Asuransi": c_ins_s,
