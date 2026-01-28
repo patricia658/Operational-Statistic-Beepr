@@ -118,11 +118,17 @@ def save_perf_data(df):
         return True
     except: return False
 
+# --- PERBAIKAN FUNGSI DELETE PERFORMA (AGAR BISA HAPUS DUPLIKAT) ---
 def delete_perf_data_by_date(date_obj):
     try:
-        supabase.table("perf_data").delete().eq("tanggal", date_obj.strftime('%Y-%m-%d')).execute()
+        # Konversi ke format string yang tepat untuk database
+        date_str = date_obj.strftime('%Y-%m-%d')
+        # Hapus data yang persis di tanggal tersebut
+        supabase.table("perf_data").delete().eq("tanggal", date_str).execute()
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"Gagal menghapus data: {e}")
+        return False
 
 def load_driver_data():
     try:
@@ -274,7 +280,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader(f"🗓️ {t('filter_date')}")
     if not st.session_state['perf_data'].empty:
-        df_temp = st.session_state['perf_data']
+        df_temp = st.session_state['perf_data'].copy()
         df_temp['Tanggal'] = pd.to_datetime(df_temp['Tanggal'])
         min_date = df_temp['Tanggal'].min().date()
         max_date = df_temp['Tanggal'].max().date()
@@ -416,11 +422,12 @@ elif selected_page == 'perf':
         
         with st.expander(f"🗑️ {t('manage_data')}"):
             cd1, cd2 = st.columns([3,1])
-            ddt = cd1.date_input(t('del_date'))
+            ddt = cd1.date_input(t('del_date'), value=datetime.now().date())
             if cd2.button(t('btn_del')):
+                # Memanggil fungsi delete dengan kepastian format
                 if delete_perf_data_by_date(ddt):
                     st.session_state['perf_data'] = load_perf_data()
-                    st.success("Deleted")
+                    st.success(f"Data tanggal {ddt} berhasil dihapus (termasuk duplikat).")
                     st.rerun()
         
         mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
@@ -556,7 +563,7 @@ elif selected_page == 'data':
     
     st.divider()
 
-    # --- FILTER DRIVER (NEW) ---
+    # --- FILTER DRIVER ---
     if not df_d.empty:
         drv_filter = st.multiselect("Filter Status Driver", ["Active", "Resigned"], default=["Active", "Resigned"])
         df_d = df_d[df_d['Status'].isin(drv_filter)]
@@ -672,7 +679,7 @@ elif selected_page == 'car':
 
     st.divider()
 
-    # --- FILTER ARMADA (NEW) ---
+    # --- FILTER ARMADA ---
     if not df_c.empty:
         car_filter = st.multiselect("Filter Status Mobil", ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], default=["Active", "Maintenance", "Rusak", "Tidak Dipakai"])
         df_c = df_c[df_c['Status Mobil'].isin(car_filter)]
