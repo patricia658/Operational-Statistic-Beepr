@@ -34,7 +34,7 @@ def upload_file_to_supabase(uploaded_file):
     try:
         file_ext = uploaded_file.name.split('.')[-1]
         file_name = f"{uuid.uuid4()}.{file_ext}"
-        bucket_name = "car_documents" # Pastikan bucket ini sudah dibuat "Public" di Supabase
+        bucket_name = "car_documents" # Pastikan bucket ini sudah dibuat di Supabase!
 
         file_bytes = uploaded_file.getvalue()
         supabase.storage.from_(bucket_name).upload(file_name, file_bytes, {"content-type": uploaded_file.type})
@@ -82,12 +82,13 @@ DRIVER_COL_MAP = {
 }
 REV_DRIVER_COL_MAP = {v: k for k, v in DRIVER_COL_MAP.items()}
 
-# [UPDATE] Menambahkan Merek Mobil
+# [UPDATE] Menambahkan Plat Nomor
 CAR_COL_MAP = {
     "Tanggal Pembelian": "tanggal_pembelian", "Merek Mobil": "merek_mobil", "Kode Mobil": "kode_mobil", 
-    "Type Mobil": "type_mobil", "Tahun Produksi": "tahun_produksi", "Warna Mobil": "warna_mobil", 
-    "No Rangka": "no_rangka", "No Mesin": "no_mesin", "Tanggal Pajak Tahunan": "tanggal_pajak", 
-    "Tanggal Ganti Plat": "tanggal_ganti_plat", "Status Mobil": "status_mobil", "Nama Asuransi": "nama_asuransi",
+    "Plat Nomor": "plat_nomor", "Type Mobil": "type_mobil", "Tahun Produksi": "tahun_produksi", 
+    "Warna Mobil": "warna_mobil", "No Rangka": "no_rangka", "No Mesin": "no_mesin", 
+    "Tanggal Pajak Tahunan": "tanggal_pajak", "Tanggal Ganti Plat": "tanggal_ganti_plat", 
+    "Status Mobil": "status_mobil", "Nama Asuransi": "nama_asuransi",
     "Tanggal Mulai Asuransi": "asuransi_mulai", "Tanggal Habis Asuransi": "asuransi_habis",
     "Reminder": "reminder", "Dokumen": "dokumen"
 }
