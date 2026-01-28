@@ -95,21 +95,13 @@ def load_perf_data():
 def save_perf_data(df):
     try:
         df_db = df.rename(columns=COL_MAP)
-        # Hapus baris yang tanggalnya kosong (NaN)
         df_db = df_db.dropna(subset=['tanggal'])
-        
         valid = list(COL_MAP.values())
         df_db = df_db[[c for c in valid if c in df_db.columns]]
-        
-        # Isi NaN pada kolom angka dengan 0
         num_cols = ['net_earnings', 'total_online_hours', 'total_trip_hours', 'total_completed_order', 'total_customer_cancelled', 'total_driver_cancelled']
         for col in num_cols:
             if col in df_db.columns: df_db[col] = df_db[col].fillna(0)
-            
         df_db['tanggal'] = pd.to_datetime(df_db['tanggal']).dt.strftime('%Y-%m-%d')
-        
-        # ANTI-DUPLIKASI: Menggunakan UPSERT (Jika nama, tanggal, dan platform sama, data lama ditimpa data baru)
-        # Pastikan di tabel Supabase sudah diset UNIQUE CONSTRAINT pada (tanggal, nama_driver, platform)
         supabase.table("perf_data").upsert(df_db.to_dict('records'), on_conflict="tanggal,nama_driver,platform").execute()
         return True
     except Exception as e:
@@ -326,39 +318,50 @@ if selected_page == 'dash':
             f4 = px.line(dm, x='L', y='Net Earnings', markers=True); st.plotly_chart(f4, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER
+# 6. PERFORMA DRIVER (VERSI ANTI-REFRESH)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title')); c_up, c_dl = st.columns([3, 1])
     with c_up:
-        upl = st.file_uploader(t('upload_perf'), type=['xlsx'])
+        upl = st.file_uploader(t('upload_perf'), type=['xlsx'], key="perf_uploader")
         if upl:
-            try:
-                temp_perf_df = pd.read_excel(upl); required_cols_perf = list(COL_MAP.keys())
-                missing_cols_perf = [col for col in required_cols_perf if col not in temp_perf_df.columns]
-                if missing_cols_perf: st.error(f"❌ Upload Gagal! Kolom tidak ditemukan:\n {', '.join(missing_cols_perf)}"); st.info("💡 Solusi: Gunakan template terbaru.")
-                else:
-                    if save_perf_data(temp_perf_df): st.session_state['perf_data'] = load_perf_data(); st.success("✅ Upload & Update Berhasil!"); st.rerun()
-            except Exception as e: st.error(f"Error: {e}")
+            if "last_perf_file" not in st.session_state or st.session_state["last_perf_file"] != upl.name:
+                try:
+                    temp_perf_df = pd.read_excel(upl); required_cols_perf = list(COL_MAP.keys())
+                    missing_cols_perf = [col for col in required_cols_perf if col not in temp_perf_df.columns]
+                    if missing_cols_perf: 
+                        st.error(f"❌ Upload Gagal! Kolom tidak ditemukan:\n {', '.join(missing_cols_perf)}")
+                    else:
+                        if save_perf_data(temp_perf_df):
+                            st.session_state["last_perf_file"] = upl.name
+                            st.session_state['perf_data'] = load_perf_data()
+                            st.success("✅ Upload & Update Berhasil!"); st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
     with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template_performa.xlsx")
+    
     if not st.session_state['perf_data'].empty:
         df = st.session_state['perf_data'].copy(); df['Tanggal'] = pd.to_datetime(df['Tanggal'])
         with st.expander(f"🗑️ {t('manage_data')}"):
             cd1, cd2 = st.columns([3,1]); ddt = cd1.date_input(t('del_date'))
             if cd2.button(t('btn_del')):
-                if delete_perf_data_by_date(ddt): st.session_state['perf_data'] = load_perf_data(); st.success("Deleted"); st.rerun()
+                if delete_perf_data_by_date(ddt): 
+                    st.session_state['perf_data'] = load_perf_data()
+                    st.success("Deleted"); st.rerun()
+        
         df = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
-        earns = ["Semua"]; 
+        earns = ["Semua"]
         if "Standard" in levs: earns.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
         if "Premium" in levs: earns.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
         sel_earn = st.sidebar.selectbox(t('filter_earn'), list(dict.fromkeys(earns)))
+        
         if levs: df = df[df['Merek'].isin(levs)]
         if hrs == "< 7 Jam": df = df[df['Total Online Hours'] < 7]
         elif hrs == "7 - 9 Jam": df = df[(df['Total Online Hours'] >= 7) & (df['Total Online Hours'] < 9)]
         elif hrs == ">= 9 Jam": df = df[df['Total Online Hours'] >= 9]
+        
         if sel_earn != "Semua":
             if "Standard < 300rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] < 300000)]
             elif "Standard 300rb-400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 300000) & (df['Net Earnings'] < 400000)]
@@ -366,32 +369,38 @@ elif selected_page == 'perf':
             elif "Premium < 500rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] < 500000)]
             elif "Premium 500rb-600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 500000) & (df['Net Earnings'] < 600000)]
             elif "Premium >= 600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 600000)]
+        
         df_disp = df.rename(columns={'Merek': 'Level'})
         st.divider(); st.subheader("📊 Analisis Target")
-        def bucketer(row):
-            e, l = row['Net Earnings'], row['Level']
-            if l == 'Standard': return '<300rb' if e<300000 else '300-400rb' if e<400000 else '>400rb'
-            return '<500rb' if e<500000 else '500-600rb' if e<600000 else '>600rb'
-        df_disp['Bucket'] = df_disp.apply(bucketer, axis=1)
         def get_stats(sub, bkts, name):
             res = []; tot = sub['Net Earnings'].sum()
             for k, v in bkts.items():
-                f = sub[v]; o = f['Net Earnings'].sum(); res.append({name: k, "Omset": format_rupiah(o), "Persentase": f"{(o/tot*100) if tot>0 else 0:.1f}%", "Jumlah Driver": f['Nama Driver'].nunique()})
-            res.append({name: "Total", "Omset": format_rupiah(tot), "Persentase": "100%", "Jumlah Driver": sub['Nama Driver'].nunique()}); return pd.DataFrame(res)
+                f = sub[v]; o = f['Net Earnings'].sum()
+                res.append({name: k, "Omset": format_rupiah(o), "Persentase": f"{(o/tot*100) if tot>0 else 0:.1f}%", "Jumlah Driver": f['Nama Driver'].nunique()})
+            res.append({name: "Total", "Omset": format_rupiah(tot), "Persentase": "100%", "Jumlah Driver": sub['Nama Driver'].nunique()})
+            return pd.DataFrame(res)
+        
         ds = df[df['Merek']=='Standard']; dp = df[df['Merek']=='Premium']; c1, c2 = st.columns(2)
         with c1:
             st.markdown("### STANDARD")
-            if not ds.empty: st.write("Pendapatan"); st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True); st.write("Jam Online"); st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
+            if not ds.empty:
+                st.write("Pendapatan"); st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True)
+                st.write("Jam Online"); st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
         with c2:
             st.markdown("### PREMIUM")
-            if not dp.empty: st.write("Pendapatan"); st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True); st.write("Jam Online"); st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
+            if not dp.empty:
+                st.write("Pendapatan"); st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True)
+                st.write("Jam Online"); st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
+        
         st.divider(); st.subheader("📋 Summary Driver")
         if not df_disp.empty:
             if 'Kode PT' not in df_disp.columns: df_disp['Kode PT'] = '-'
             summ = df_disp.groupby(['Nama Driver', 'Kode PT', 'Level']).agg({'Tanggal': 'nunique', 'Net Earnings': 'sum', 'Total Online Hours': 'sum', 'Total Trip Hours': 'sum', 'Total Completed Order': 'sum', 'Total Customer Cancelled': 'sum', 'Total Driver Cancelled': 'sum'}).reset_index()
             summ['Rank'] = summ['Net Earnings'].rank(ascending=False).astype(int); summ['Avg'] = summ['Net Earnings'] / summ['Total Completed Order'].replace(0,1); summ = summ.sort_values('Rank')
             summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah); summ['Earning Rata2'] = summ['Avg'].apply(format_rupiah); summ.reset_index(drop=True, inplace=True); summ.index += 1
-            show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'}); st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
+            show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
+            st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
+        
         st.divider(); st.subheader("📝 Detail Harian"); df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
         def hl(row):
             e, h, l, c = row['Net Earnings'], row['Total Online Hours'], row['Level'], ''
@@ -412,9 +421,13 @@ elif selected_page == 'perf':
 elif selected_page == 'data':
     st.title(t('data_title')); c_up, c_dl = st.columns([3, 1])
     with c_up:
-        upl = st.file_uploader(t('upload_data'), type=['xlsx'])
+        upl = st.file_uploader(t('upload_data'), type=['xlsx'], key="driver_uploader")
         if upl:
-            if save_driver_data(pd.read_excel(upl)): st.session_state['driver_data'] = load_driver_data(); st.success("Success!")
+            if "last_driver_file" not in st.session_state or st.session_state["last_driver_file"] != upl.name:
+                if save_driver_data(pd.read_excel(upl)): 
+                    st.session_state["last_driver_file"] = upl.name
+                    st.session_state['driver_data'] = load_driver_data()
+                    st.success("Success!"); st.rerun()
     with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('driver'), "template_driver.xlsx")
     df_d = st.session_state['driver_data']; m1, m2, m3 = st.columns(3); total = len(df_d) if not df_d.empty else 0; active = len(df_d[df_d['Status']=='Active']) if not df_d.empty else 0; resign = len(df_d[df_d['Status']=='Resigned']) if not df_d.empty else 0
     m1.metric(t('stat_total'), total); m2.metric(t('stat_active'), active); m3.metric(t('stat_resign'), resign); st.divider(); col_in, col_del = st.columns(2)
@@ -430,16 +443,16 @@ elif selected_page == 'data':
                 del_name = st.selectbox("Pilih Driver", df_d['Nama Driver'].unique())
                 if st.button(t('btn_del_drv')):
                     if delete_driver_by_name(del_name): st.session_state['driver_data'] = load_driver_data(); st.success("Deleted!"); st.rerun()
-    st.markdown("### List Driver"); 
+    st.markdown("### List Driver")
     if not df_d.empty: df_show = df_d.reset_index(drop=True); df_show.index += 1; st.dataframe(df_show, use_container_width=True)
 
 # ==========================================
 # 8. DATA MOBIL
 # ==========================================
 elif selected_page == 'car':
-    st.title(t('car_title')); 
+    st.title(t('car_title'))
     with st.expander(f"📧 {t('reminder_check')}"):
-        st.write(t('reminder_desc')); 
+        st.write(t('reminder_desc'))
         if st.button("Check & Send Email"):
             df_check = st.session_state['car_data'].copy()
             if not df_check.empty:
@@ -456,17 +469,23 @@ elif selected_page == 'car':
                     if send_email_notification("REMINDER: Armada Expiring Soon", f"Daftar armada:\n\n{alert_msg}"): st.success("Email sent!")
                 else: st.info("No items expiring.")
             else: st.error("No car data found.")
+    
     c_up, c_dl = st.columns([3, 1])
     with c_up:
-        upl = st.file_uploader(t('upload_car'), type=['xlsx'])
+        upl = st.file_uploader(t('upload_car'), type=['xlsx'], key="car_uploader")
         if upl:
-            try:
-                temp_df = pd.read_excel(upl); missing_cols = [col for col in list(CAR_COL_MAP.keys()) if col not in temp_df.columns]
-                if missing_cols: st.error(f"❌ Upload Gagal! Kolom tidak ditemukan:\n {', '.join(missing_cols)}")
-                else:
-                    if save_car_data(temp_df): st.session_state['car_data'] = load_car_data(); st.success("✅ Success!"); st.rerun()
-            except Exception as e: st.error(f"Error: {e}")
+            if "last_car_file" not in st.session_state or st.session_state["last_car_file"] != upl.name:
+                try:
+                    temp_df = pd.read_excel(upl); missing_cols = [col for col in list(CAR_COL_MAP.keys()) if col not in temp_df.columns]
+                    if missing_cols: st.error(f"❌ Upload Gagal! Kolom tidak ditemukan:\n {', '.join(missing_cols)}")
+                    else:
+                        if save_car_data(temp_df): 
+                            st.session_state["last_car_file"] = upl.name
+                            st.session_state['car_data'] = load_car_data()
+                            st.success("✅ Success!"); st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
     with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('car'), "template_car.xlsx")
+    
     df_c = st.session_state['car_data']; k1, k2, k3, k4, k5 = st.columns(5); tot_c = len(df_c) if not df_c.empty else 0
     k1.metric(t('stat_car_total'), tot_c); k2.metric(t('stat_car_active'), len(df_c[df_c['Status Mobil']=='Active']) if not df_c.empty else 0); k3.metric(t('stat_car_maint'), len(df_c[df_c['Status Mobil']=='Maintenance']) if not df_c.empty else 0); k4.metric(t('stat_car_broken'), len(df_c[df_c['Status Mobil']=='Rusak']) if not df_c.empty else 0); k5.metric(t('stat_car_unused'), len(df_c[df_c['Status Mobil']=='Tidak Dipakai']) if not df_c.empty else 0)
     st.divider(); ci, cd = st.columns(2)
@@ -485,5 +504,7 @@ elif selected_page == 'car':
                 del_code = st.selectbox("Pilih Kode Mobil", df_c['Kode Mobil'].unique())
                 if st.button(t('btn_del_car')):
                     if delete_car_by_code(del_code): st.session_state['car_data'] = load_car_data(); st.success("Deleted!"); st.rerun()
-    st.markdown("### List Armada"); 
-    if not df_c.empty: df_show_c = df_c.reset_index(drop=True); df_show_c.index += 1; st.dataframe(df_show_c, use_container_width=True, column_config={"Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")})
+    st.markdown("### List Armada")
+    if not df_c.empty: 
+        df_show_c = df_c.reset_index(drop=True); df_show_c.index += 1
+        st.dataframe(df_show_c, use_container_width=True, column_config={"Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")})
