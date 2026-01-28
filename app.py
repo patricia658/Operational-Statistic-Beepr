@@ -27,26 +27,43 @@ except:
     st.error("Secrets belum lengkap. Pastikan Supabase & Email sudah disetting.")
     st.stop()
 
-# --- FUNGSI UPLOAD FOTO ---
+# --- FUNGSI UPLOAD FOTO (DEBUG VERSION) ---
 def upload_file_to_supabase(uploaded_file):
     if uploaded_file is None:
         return None
     try:
+        # 1. Bersihkan nama file
         file_ext = uploaded_file.name.split('.')[-1]
         file_name = f"{uuid.uuid4()}.{file_ext}"
         bucket_name = "car_documents"
 
+        # 2. Baca File
         file_bytes = uploaded_file.getvalue()
-        supabase.storage.from_(bucket_name).upload(file_name, file_bytes, {"content-type": uploaded_file.type})
-        return supabase.storage.from_(bucket_name).get_public_url(file_name)
+        
+        # 3. Proses Upload
+        # st.write("Sedang mengirim ke Supabase Storage...") # Debug msg
+        response = supabase.storage.from_(bucket_name).upload(
+            path=file_name, 
+            file=file_bytes, 
+            file_options={"content-type": uploaded_file.type}
+        )
+        
+        # 4. Ambil Link
+        public_url = supabase.storage.from_(bucket_name).get_public_url(file_name)
+        return public_url
+
     except Exception as e:
-        st.error(f"Gagal upload foto: {e}")
+        # Tampilkan Error Jelas
+        st.error(f"❌ Error Upload Storage: {str(e)}")
+        if "403" in str(e) or "policy" in str(e):
+            st.warning("⚠️ Masalah Izin: Jalankan kode SQL 'Jurus Terakhir' di bawah.")
+        if "404" in str(e):
+            st.warning("⚠️ Bucket Hilang: Pastikan nama bucket 'car_documents' (huruf kecil semua).")
         return None
 
 # --- FUNGSI EMAIL ---
 def send_email_notification(subject, body_text):
     if not EMAIL_SENDER or not EMAIL_PASSWORD:
-        st.error("Settingan email belum ada di secrets.toml!")
         return False
     try:
         msg = MIMEMultipart()
@@ -61,9 +78,7 @@ def send_email_notification(subject, body_text):
         server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, text)
         server.quit()
         return True
-    except Exception as e:
-        st.error(f"Gagal kirim email: {e}")
-        return False
+    except: return False
 
 # --- MAPPING DATA ---
 COL_MAP = {
@@ -166,9 +181,13 @@ def save_car_data(df):
         for col in ["tanggal_pembelian", "tanggal_pajak", "tanggal_ganti_plat", "asuransi_mulai", "asuransi_habis"]:
             if col in df_db.columns:
                 df_db[col] = pd.to_datetime(df_db[col], errors="coerce").dt.strftime("%Y-%m-%d")
+        
+        # EXECUTE INSERT
         supabase.table("car_data").upsert(df_db.to_dict('records'), on_conflict="kode_mobil").execute()
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"Gagal simpan database: {e}") # Debugging Database
+        return False
 
 def delete_car_by_code(code):
     try:
@@ -523,7 +542,7 @@ elif selected_page == 'perf':
         st.dataframe(df_disp.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
 
 # ==========================================
-# 7. HALAMAN 3: DATA DRIVER
+# 7. HALAMAN 3: DATA DRIVER (BARU + UPDATE)
 # ==========================================
 elif selected_page == 'data':
     st.title(t('data_title'))
@@ -552,7 +571,9 @@ elif selected_page == 'data':
     
     st.divider()
     
+    # INPUT MANUAL & DELETE MANUAL
     col_in, col_del = st.columns(2)
+    
     with col_in:
         with st.expander(f"➕ {t('input_manual')}"):
             with st.form("add_driver_form"):
