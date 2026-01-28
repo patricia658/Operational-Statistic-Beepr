@@ -32,33 +32,21 @@ def upload_file_to_supabase(uploaded_file):
     if uploaded_file is None:
         return None
     try:
-        # 1. Bersihkan nama file
         file_ext = uploaded_file.name.split('.')[-1]
         file_name = f"{uuid.uuid4()}.{file_ext}"
         bucket_name = "car_documents"
-
-        # 2. Baca File
         file_bytes = uploaded_file.getvalue()
         
-        # 3. Proses Upload
-        # st.write("Sedang mengirim ke Supabase Storage...") # Debug msg
         response = supabase.storage.from_(bucket_name).upload(
             path=file_name, 
             file=file_bytes, 
             file_options={"content-type": uploaded_file.type}
         )
         
-        # 4. Ambil Link
         public_url = supabase.storage.from_(bucket_name).get_public_url(file_name)
         return public_url
-
     except Exception as e:
-        # Tampilkan Error Jelas
         st.error(f"❌ Error Upload Storage: {str(e)}")
-        if "403" in str(e) or "policy" in str(e):
-            st.warning("⚠️ Masalah Izin: Jalankan kode SQL 'Jurus Terakhir' di bawah.")
-        if "404" in str(e):
-            st.warning("⚠️ Bucket Hilang: Pastikan nama bucket 'car_documents' (huruf kecil semua).")
         return None
 
 # --- FUNGSI EMAIL ---
@@ -128,7 +116,9 @@ def save_perf_data(df):
         df_db['tanggal'] = pd.to_datetime(df_db['tanggal']).dt.strftime('%Y-%m-%d')
         supabase.table("perf_data").insert(df_db.to_dict('records')).execute()
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"Database Error: {e}")
+        return False
 
 def delete_perf_data_by_date(date_obj):
     try:
@@ -181,12 +171,10 @@ def save_car_data(df):
         for col in ["tanggal_pembelian", "tanggal_pajak", "tanggal_ganti_plat", "asuransi_mulai", "asuransi_habis"]:
             if col in df_db.columns:
                 df_db[col] = pd.to_datetime(df_db[col], errors="coerce").dt.strftime("%Y-%m-%d")
-        
-        # EXECUTE INSERT
         supabase.table("car_data").upsert(df_db.to_dict('records'), on_conflict="kode_mobil").execute()
         return True
     except Exception as e:
-        st.error(f"Gagal simpan database: {e}") # Debugging Database
+        st.error(f"Gagal simpan database: {e}")
         return False
 
 def delete_car_by_code(code):
@@ -408,21 +396,36 @@ if selected_page == 'dash':
             st.plotly_chart(f4, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER
+# 6. PERFORMA DRIVER (DENGAN VALIDASI ERROR)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title'))
     c_up, c_dl = st.columns([3, 1])
+    
     with c_up:
         upl = st.file_uploader(t('upload_perf'), type=['xlsx'])
         if upl:
-            if save_perf_data(pd.read_excel(upl)):
-                st.session_state['perf_data'] = load_perf_data()
-                st.success("Success!")
-                st.rerun()
+            try:
+                temp_perf_df = pd.read_excel(upl)
+                
+                # --- VALIDASI KOLOM PERFORMA ---
+                required_cols_perf = list(COL_MAP.keys())
+                missing_cols_perf = [col for col in required_cols_perf if col not in temp_perf_df.columns]
+                
+                if missing_cols_perf:
+                    st.error(f"❌ Upload Gagal! Kolom berikut tidak ditemukan:\n {', '.join(missing_cols_perf)}")
+                    st.info("💡 Solusi: Gunakan template terbaru dan pastikan nama kolom tidak diubah.")
+                else:
+                    if save_perf_data(temp_perf_df):
+                        st.session_state['perf_data'] = load_perf_data()
+                        st.success("✅ Berhasil upload data performa!")
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat membaca file: {e}")
+
     with c_dl:
         st.write(""); st.write("")
-        st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template.xlsx")
+        st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template_performa.xlsx")
 
     if 'perf_data' in st.session_state and not st.session_state['perf_data'].empty:
         df = st.session_state['perf_data'].copy()
@@ -515,7 +518,6 @@ elif selected_page == 'perf':
             summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah)
             summ['Earning Rata2'] = summ['Avg'].apply(format_rupiah)
             
-            # Index No
             summ.reset_index(drop=True, inplace=True)
             summ.index += 1
             
@@ -542,7 +544,7 @@ elif selected_page == 'perf':
         st.dataframe(df_disp.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
 
 # ==========================================
-# 7. HALAMAN 3: DATA DRIVER (BARU + UPDATE)
+# 7. DATA DRIVER
 # ==========================================
 elif selected_page == 'data':
     st.title(t('data_title'))
@@ -558,8 +560,6 @@ elif selected_page == 'data':
         st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('driver'), "template_driver.xlsx")
 
     df_d = st.session_state['driver_data']
-    
-    # METRICS
     m1, m2, m3 = st.columns(3)
     total = len(df_d) if not df_d.empty else 0
     active = len(df_d[df_d['Status']=='Active']) if not df_d.empty else 0
@@ -570,8 +570,6 @@ elif selected_page == 'data':
     m3.metric(t('stat_resign'), resign)
     
     st.divider()
-    
-    # INPUT MANUAL & DELETE MANUAL
     col_in, col_del = st.columns(2)
     
     with col_in:
@@ -606,12 +604,11 @@ elif selected_page == 'data':
         st.dataframe(df_show, use_container_width=True)
 
 # ==========================================
-# 8. HALAMAN 4: DATA MOBIL (VALIDASI ERROR)
+# 8. DATA MOBIL
 # ==========================================
 elif selected_page == 'car':
     st.title(t('car_title'))
     
-    # 1. NOTIFIKASI & EMAIL
     with st.expander(f"📧 {t('reminder_check')}"):
         st.write(t('reminder_desc'))
         if st.button("Check & Send Email"):
@@ -644,18 +641,16 @@ elif selected_page == 'car':
         if upl:
             try:
                 temp_df = pd.read_excel(upl)
-                
-                # --- VALIDASI KOLOM (BARU) ---
                 required_cols = list(CAR_COL_MAP.keys())
                 missing_cols = [col for col in required_cols if col not in temp_df.columns]
                 
                 if missing_cols:
-                    st.error(f"❌ Upload Gagal! Kolom berikut tidak ditemukan di Excel:\n {', '.join(missing_cols)}")
-                    st.info("💡 Solusi: Download Template Excel terbaru di sebelah kanan dan gunakan format tersebut.")
+                    st.error(f"❌ Upload Gagal! Kolom berikut tidak ditemukan:\n {', '.join(missing_cols)}")
+                    st.info("💡 Solusi: Download Template Excel terbaru.")
                 else:
                     if save_car_data(temp_df):
                         st.session_state['car_data'] = load_car_data()
-                        st.success("✅ Upload Berhasil! Data mobil telah disimpan.")
+                        st.success("✅ Berhasil upload data mobil!")
                         st.rerun()
             except Exception as e:
                 st.error(f"Terjadi kesalahan saat membaca file: {e}")
@@ -679,7 +674,6 @@ elif selected_page == 'car':
     k5.metric(t('stat_car_unused'), uns_c)
 
     st.divider()
-
     ci, cd = st.columns(2)
     with ci:
         with st.expander(f"➕ {t('input_car')}"):
@@ -703,7 +697,7 @@ elif selected_page == 'car':
                     c_ins_s = st.date_input("Asuransi Mulai")
                     c_ins_e = st.date_input("Asuransi Habis")
                     c_rem = st.text_input("Reminder")
-                    c_doc_file = st.file_uploader("Upload Dokumen/Foto (STNK/Polis)", type=['png', 'jpg', 'jpeg', 'pdf'])
+                    c_doc_file = st.file_uploader("Upload Dokumen/Foto", type=['png', 'jpg', 'jpeg', 'pdf'])
 
                 if st.form_submit_button(t('btn_add_car')):
                     doc_url = ""
@@ -722,10 +716,6 @@ elif selected_page == 'car':
                         "Dokumen": doc_url
                     }])
                     
-                    # Validasi Duplikat (Manual Check)
-                    if not df_c.empty and c_code in df_c['Kode Mobil'].values:
-                        st.warning(f"⚠️ Kode Mobil '{c_code}' sudah ada! Data akan di-update.")
-                    
                     if save_car_data(new_car):
                         st.session_state['car_data'] = load_car_data()
                         st.success("Saved!")
@@ -740,7 +730,6 @@ elif selected_page == 'car':
                         st.session_state['car_data'] = load_car_data()
                         st.success("Deleted!")
                         st.rerun()
-            else: st.info("No Data")
 
     st.markdown("### List Armada")
     if not df_c.empty:
