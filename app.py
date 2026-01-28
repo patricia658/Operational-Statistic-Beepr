@@ -4,7 +4,7 @@ import plotly.express as px
 import numpy as np
 import io
 import smtplib
-import uuid  # Untuk nama file unik
+import uuid
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -34,7 +34,7 @@ def upload_file_to_supabase(uploaded_file):
     try:
         file_ext = uploaded_file.name.split('.')[-1]
         file_name = f"{uuid.uuid4()}.{file_ext}"
-        bucket_name = "car_documents" # Pastikan bucket ini sudah dibuat di Supabase!
+        bucket_name = "car_documents"
 
         file_bytes = uploaded_file.getvalue()
         supabase.storage.from_(bucket_name).upload(file_name, file_bytes, {"content-type": uploaded_file.type})
@@ -82,7 +82,6 @@ DRIVER_COL_MAP = {
 }
 REV_DRIVER_COL_MAP = {v: k for k, v in DRIVER_COL_MAP.items()}
 
-# [UPDATE] Menambahkan Plat Nomor
 CAR_COL_MAP = {
     "Tanggal Pembelian": "tanggal_pembelian", "Merek Mobil": "merek_mobil", "Kode Mobil": "kode_mobil", 
     "Plat Nomor": "plat_nomor", "Type Mobil": "type_mobil", "Tahun Produksi": "tahun_produksi", 
@@ -524,7 +523,7 @@ elif selected_page == 'perf':
         st.dataframe(df_disp.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
 
 # ==========================================
-# 7. HALAMAN 3: DATA DRIVER (BARU + UPDATE)
+# 7. HALAMAN 3: DATA DRIVER
 # ==========================================
 elif selected_page == 'data':
     st.title(t('data_title'))
@@ -553,9 +552,7 @@ elif selected_page == 'data':
     
     st.divider()
     
-    # INPUT MANUAL & DELETE MANUAL
     col_in, col_del = st.columns(2)
-    
     with col_in:
         with st.expander(f"➕ {t('input_manual')}"):
             with st.form("add_driver_form"):
@@ -566,17 +563,11 @@ elif selected_page == 'data':
                 dj = st.selectbox("Jenis Kelamin", ["Laki-laki", "Perempuan"])
                 dd = st.text_input("Domisili")
                 ds = st.selectbox("Status", t('driver_status_opt'))
-                
                 if st.form_submit_button(t('btn_add')):
-                    new_data = pd.DataFrame([{
-                        "Nama Driver": dn, "Kode PT": dc, "Pengalaman App": de,
-                        "Waktu Masuk Kerja": dw, "Jenis Kelamin": dj, "Domisili": dd, "Status": ds
-                    }])
-                    if save_driver_data(new_data):
+                    if save_driver_data(pd.DataFrame([{"Nama Driver": dn, "Kode PT": dc, "Pengalaman App": de, "Waktu Masuk Kerja": dw, "Jenis Kelamin": dj, "Domisili": dd, "Status": ds}])):
                         st.session_state['driver_data'] = load_driver_data()
                         st.success("Saved!")
                         st.rerun()
-
     with col_del:
         with st.expander(f"🗑️ {t('del_manual')}"):
             if not df_d.empty:
@@ -586,18 +577,15 @@ elif selected_page == 'data':
                         st.session_state['driver_data'] = load_driver_data()
                         st.success("Deleted!")
                         st.rerun()
-            else:
-                st.info("No Data")
-
+    
     st.markdown("### List Driver")
-    # Tampilkan tabel tanpa index (No urut manual)
     if not df_d.empty:
         df_show = df_d.reset_index(drop=True)
         df_show.index += 1
         st.dataframe(df_show, use_container_width=True)
 
 # ==========================================
-# 8. HALAMAN 4: DATA MOBIL (BARU)
+# 8. HALAMAN 4: DATA MOBIL (VALIDASI ERROR)
 # ==========================================
 elif selected_page == 'car':
     st.title(t('car_title'))
@@ -608,20 +596,14 @@ elif selected_page == 'car':
         if st.button("Check & Send Email"):
             df_check = st.session_state['car_data'].copy()
             if not df_check.empty:
-                # Cek Tanggal Pajak & Asuransi
                 today = datetime.now().date()
                 alert_msg = ""
-                
-                # Logic: Cek yang < 30 hari
                 for _, row in df_check.iterrows():
-                    # Cek Asuransi
                     if pd.notnull(row['Tanggal Habis Asuransi']):
                         exp_date = pd.to_datetime(row['Tanggal Habis Asuransi']).date()
                         days_left = (exp_date - today).days
                         if 0 <= days_left <= 30:
                             alert_msg += f"- Mobil {row['Kode Mobil']} (Asuransi): Expired {days_left} hari lagi ({row['Tanggal Habis Asuransi']})\n"
-                    
-                    # Cek Pajak
                     if pd.notnull(row['Tanggal Pajak Tahunan']):
                         tax_date = pd.to_datetime(row['Tanggal Pajak Tahunan']).date()
                         days_left_tax = (tax_date - today).days
@@ -632,18 +614,31 @@ elif selected_page == 'car':
                     st.warning("Found expiring items:\n" + alert_msg)
                     if send_email_notification("REMINDER: Armada Expiring Soon", f"Halo,\n\nBerikut daftar armada yang perlu perhatian:\n\n{alert_msg}\n\nTerima kasih."):
                         st.success("Email sent successfully!")
-                else:
-                    st.info("No items expiring within 30 days.")
-            else:
-                st.error("No car data found.")
+                else: st.info("No items expiring within 30 days.")
+            else: st.error("No car data found.")
 
     c_up, c_dl = st.columns([3, 1])
     with c_up:
         upl = st.file_uploader(t('upload_car'), type=['xlsx'])
         if upl:
-            if save_car_data(pd.read_excel(upl)):
-                st.session_state['car_data'] = load_car_data()
-                st.success("Success!")
+            try:
+                temp_df = pd.read_excel(upl)
+                
+                # --- VALIDASI KOLOM (BARU) ---
+                required_cols = list(CAR_COL_MAP.keys())
+                missing_cols = [col for col in required_cols if col not in temp_df.columns]
+                
+                if missing_cols:
+                    st.error(f"❌ Upload Gagal! Kolom berikut tidak ditemukan di Excel:\n {', '.join(missing_cols)}")
+                    st.info("💡 Solusi: Download Template Excel terbaru di sebelah kanan dan gunakan format tersebut.")
+                else:
+                    if save_car_data(temp_df):
+                        st.session_state['car_data'] = load_car_data()
+                        st.success("✅ Upload Berhasil! Data mobil telah disimpan.")
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat membaca file: {e}")
+
     with c_dl:
         st.write(""); st.write("")
         st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('car'), "template_car.xlsx")
@@ -668,13 +663,12 @@ elif selected_page == 'car':
     with ci:
         with st.expander(f"➕ {t('input_car')}"):
             with st.form("add_car_form"):
-                # Split inputs into columns for compactness
                 c1, c2 = st.columns(2)
                 with c1:
                     c_buy = st.date_input("Tanggal Pembelian")
-                    c_brand = st.text_input("Merek Mobil") # NEW
+                    c_brand = st.text_input("Merek Mobil")
                     c_code = st.text_input("Kode Mobil")
-                    c_plat = st.text_input("Plat Nomor") # NEW
+                    c_plat = st.text_input("Plat Nomor")
                     c_type = st.text_input("Type Mobil")
                     c_year = st.text_input("Tahun Produksi")
                     c_col = st.text_input("Warna Mobil")
@@ -688,12 +682,9 @@ elif selected_page == 'car':
                     c_ins_s = st.date_input("Asuransi Mulai")
                     c_ins_e = st.date_input("Asuransi Habis")
                     c_rem = st.text_input("Reminder")
-                    
-                    # --- UPLOAD FOTO ---
                     c_doc_file = st.file_uploader("Upload Dokumen/Foto (STNK/Polis)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
                 if st.form_submit_button(t('btn_add_car')):
-                    # Proses Upload Dulu
                     doc_url = ""
                     if c_doc_file:
                         with st.spinner("Mengupload foto..."):
@@ -707,8 +698,12 @@ elif selected_page == 'car':
                         "Tanggal Pajak Tahunan": c_tax, "Tanggal Ganti Plat": c_plat_dt,
                         "Status Mobil": c_stat, "Nama Asuransi": c_ins_n, "Tanggal Mulai Asuransi": c_ins_s,
                         "Tanggal Habis Asuransi": c_ins_e, "Reminder": c_rem, 
-                        "Dokumen": doc_url # Simpan Link-nya di sini
+                        "Dokumen": doc_url
                     }])
+                    
+                    # Validasi Duplikat (Manual Check)
+                    if not df_c.empty and c_code in df_c['Kode Mobil'].values:
+                        st.warning(f"⚠️ Kode Mobil '{c_code}' sudah ada! Data akan di-update.")
                     
                     if save_car_data(new_car):
                         st.session_state['car_data'] = load_car_data()
@@ -730,12 +725,4 @@ elif selected_page == 'car':
     if not df_c.empty:
         df_show_c = df_c.reset_index(drop=True)
         df_show_c.index += 1
-        
-        # Konfigurasi kolom Dokumen jadi Link/Gambar
-        st.dataframe(
-            df_show_c, 
-            use_container_width=True,
-            column_config={
-                "Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")
-            }
-        )
+        st.dataframe(df_show_c, use_container_width=True, column_config={"Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")})
