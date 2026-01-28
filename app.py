@@ -118,12 +118,9 @@ def save_perf_data(df):
         return True
     except: return False
 
-# --- PERBAIKAN FUNGSI DELETE PERFORMA (AGAR BISA HAPUS DUPLIKAT) ---
 def delete_perf_data_by_date(date_obj):
     try:
-        # Konversi ke format string yang tepat untuk database
         date_str = date_obj.strftime('%Y-%m-%d')
-        # Hapus data yang persis di tanggal tersebut
         supabase.table("perf_data").delete().eq("tanggal", date_str).execute()
         return True
     except Exception as e:
@@ -408,10 +405,15 @@ elif selected_page == 'perf':
     with c_up:
         upl = st.file_uploader(t('upload_perf'), type=['xlsx'])
         if upl:
-            if save_perf_data(pd.read_excel(upl)):
-                st.session_state['perf_data'] = load_perf_data()
-                st.success("Success!")
-                st.rerun()
+            try:
+                data_excel = pd.read_excel(upl)
+                if save_perf_data(data_excel):
+                    st.session_state['perf_data'] = load_perf_data()
+                    st.success(f"✅ Berhasil! {len(data_excel)} baris data performa telah diupload.")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Terjadi kesalahan: {e}")
+                
     with c_dl:
         st.write(""); st.write("")
         st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template.xlsx")
@@ -424,10 +426,9 @@ elif selected_page == 'perf':
             cd1, cd2 = st.columns([3,1])
             ddt = cd1.date_input(t('del_date'), value=datetime.now().date())
             if cd2.button(t('btn_del')):
-                # Memanggil fungsi delete dengan kepastian format
                 if delete_perf_data_by_date(ddt):
                     st.session_state['perf_data'] = load_perf_data()
-                    st.success(f"Data tanggal {ddt} berhasil dihapus (termasuk duplikat).")
+                    st.success(f"✅ Data tanggal {ddt} berhasil dihapus (termasuk jika ada duplikat).")
                     st.rerun()
         
         mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
