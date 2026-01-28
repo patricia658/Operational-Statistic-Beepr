@@ -674,6 +674,7 @@ elif selected_page == 'car':
                     c_buy = st.date_input("Tanggal Pembelian")
                     c_brand = st.text_input("Merek Mobil") # NEW
                     c_code = st.text_input("Kode Mobil")
+                    c_plat = st.text_input("Plat Nomor") # NEW
                     c_type = st.text_input("Type Mobil")
                     c_year = st.text_input("Tahun Produksi")
                     c_col = st.text_input("Warna Mobil")
@@ -681,7 +682,7 @@ elif selected_page == 'car':
                     c_engine = st.text_input("No Mesin")
                 with c2:
                     c_tax = st.date_input("Tanggal Pajak Tahunan")
-                    c_plat = st.date_input("Tanggal Ganti Plat")
+                    c_plat_dt = st.date_input("Tanggal Ganti Plat")
                     c_stat = st.selectbox("Status Mobil", t('car_status_opt'))
                     c_ins_n = st.text_input("Nama Asuransi")
                     c_ins_s = st.date_input("Asuransi Mulai")
@@ -700,9 +701,10 @@ elif selected_page == 'car':
                             if url: doc_url = url
                     
                     new_car = pd.DataFrame([{
-                        "Tanggal Pembelian": c_buy, "Merek Mobil": c_brand, "Kode Mobil": c_code, "Type Mobil": c_type,
-                        "Tahun Produksi": c_year, "Warna Mobil": c_col, "No Rangka": c_chassis,
-                        "No Mesin": c_engine, "Tanggal Pajak Tahunan": c_tax, "Tanggal Ganti Plat": c_plat,
+                        "Tanggal Pembelian": c_buy, "Merek Mobil": c_brand, "Kode Mobil": c_code, 
+                        "Plat Nomor": c_plat, "Type Mobil": c_type, "Tahun Produksi": c_year, 
+                        "Warna Mobil": c_col, "No Rangka": c_chassis, "No Mesin": c_engine, 
+                        "Tanggal Pajak Tahunan": c_tax, "Tanggal Ganti Plat": c_plat_dt,
                         "Status Mobil": c_stat, "Nama Asuransi": c_ins_n, "Tanggal Mulai Asuransi": c_ins_s,
                         "Tanggal Habis Asuransi": c_ins_e, "Reminder": c_rem, 
                         "Dokumen": doc_url # Simpan Link-nya di sini
