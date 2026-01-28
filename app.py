@@ -16,7 +16,7 @@ except:
     st.error("Secrets Supabase belum disetting dengan benar.")
     st.stop()
 
-# --- MAPPING NAMA KOLOM ---
+# --- MAPPING NAMA KOLOM (PERFORMA) ---
 COL_MAP = {
     "Tanggal": "tanggal",
     "Nama Driver": "nama_driver",
@@ -34,12 +34,26 @@ COL_MAP = {
 
 REV_COL_MAP = {v: k for k, v in COL_MAP.items()}
 
+# --- [BARU] MAPPING NAMA KOLOM (DRIVER DATA) ---
+DRIVER_COL_MAP = {
+    "Nama Driver": "nama_driver",
+    "Pengalaman App": "pengalaman_app",
+    "Waktu Masuk Kerja": "waktu_masuk_kerja",
+    "Jenis Kelamin": "jenis_kelamin",
+    "Domisili": "domisili",
+    "Kode PT": "kode_pt",
+    "Status": "status"
+}
+
+REV_DRIVER_COL_MAP = {v: k for k, v in DRIVER_COL_MAP.items()}
+
 # --- MAPPING REBRANDING ---
 CAR_RENAME_MAP = {
     "BYD Atto 1": "Standard",
     "Geely EX5 Max": "Premium"
 }
 
+# --- FUNGSI PERFORMA ---
 def load_perf_data():
     try:
         response = supabase.table("perf_data").select("*").execute()
@@ -76,6 +90,46 @@ def delete_perf_data_by_date(date_obj):
         st.error(f"Gagal hapus data: {e}")
         return False
 
+# --- [BARU] FUNGSI DRIVER DATA ---
+def load_driver_data():
+    try:
+        response = supabase.table("driver_data").select("*").execute()
+        if response.data:
+            df = pd.DataFrame(response.data)
+            # Drop id supaya tidak tampil jika ada
+            if "id" in df.columns:
+                df = df.drop(columns=["id"])
+            df = df.rename(columns=REV_DRIVER_COL_MAP)
+            return df
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Gagal load driver data: {e}")
+        return pd.DataFrame()
+
+def save_driver_data(df):
+    try:
+        df_db = df.rename(columns=DRIVER_COL_MAP)
+        valid_cols = list(DRIVER_COL_MAP.values())
+        df_db = df_db[[c for c in valid_cols if c in df_db.columns]]
+
+        # Convert tanggal masuk kerja
+        if "waktu_masuk_kerja" in df_db.columns:
+            df_db["waktu_masuk_kerja"] = pd.to_datetime(
+                df_db["waktu_masuk_kerja"], errors="coerce"
+            ).dt.strftime("%Y-%m-%d")
+
+        records = df_db.to_dict(orient="records")
+
+        # UPSERT supaya tidak duplicate (perlu unique key di 'nama_driver' di Supabase)
+        supabase.table("driver_data").upsert(
+            records,
+            on_conflict="nama_driver"
+        ).execute()
+        return True
+    except Exception as e:
+        st.error(f"Gagal simpan driver data: {e}")
+        return False
+
 # ==========================================
 # 1. SISTEM LOGIN
 # ==========================================
@@ -102,8 +156,13 @@ def check_password():
 if not check_password():
     st.stop()
 
+# --- INITIALIZE SESSION STATE ---
 if 'perf_data' not in st.session_state:
     st.session_state['perf_data'] = load_perf_data()
+
+# [BARU] Init Driver Data
+if 'driver_data' not in st.session_state:
+    st.session_state['driver_data'] = load_driver_data()
 
 # ==========================================
 # 2. KONFIGURASI HALAMAN
@@ -194,7 +253,7 @@ def format_rupiah(value):
     return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. HALAMAN 1: DASHBOARD (AMAN - TIDAK DIUBAH)
+# 5. HALAMAN 1: DASHBOARD
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -322,12 +381,11 @@ if selected_page == 'dash':
             st.plotly_chart(fig_m, use_container_width=True)
 
 # ==========================================
-# 6. HALAMAN 2: PERFORMA DRIVER (REVISI BESAR)
+# 6. HALAMAN 2: PERFORMA DRIVER
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title'))
     
-    # 1. Upload & Download Template
     col_up, col_dl = st.columns([3, 1])
     with col_up:
         uploaded = st.file_uploader(t('upload_perf'), type=['xlsx'])
@@ -344,12 +402,11 @@ elif selected_page == 'perf':
         st.write(""); st.write("")
         st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template.xlsx")
     
-    # LOAD DATA
     if 'perf_data' in st.session_state and not st.session_state['perf_data'].empty:
         df = st.session_state['perf_data'].copy()
         df['Tanggal'] = pd.to_datetime(df['Tanggal'])
 
-        # 2. FITUR DELETE DATA
+        # DELETE DATA
         with st.expander(f"🗑️ {t('manage_data')}"):
             c_del1, c_del2 = st.columns([3, 1])
             del_dt = c_del1.date_input(t('del_date'), key='del_dt_picker')
@@ -360,7 +417,7 @@ elif selected_page == 'perf':
                         st.success("Data Deleted.")
                         st.rerun()
 
-        # 3. FILTER LOGIC
+        # APPLY GLOBAL FILTER
         mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
         df = df.loc[mask]
 
@@ -375,7 +432,7 @@ elif selected_page == 'perf':
         hour_opts = ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"]
         sel_hour = st.sidebar.selectbox(t('filter_hour'), hour_opts)
 
-        # Filter Pendapatan (Logika Dinamis)
+        # Filter Pendapatan
         earn_opts = ["Semua"]
         if "Standard" in sel_levels:
             earn_opts.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
@@ -408,7 +465,6 @@ elif selected_page == 'perf':
         st.divider()
         st.subheader("📊 Analisis Pencapaian Target (Standard & Premium)")
         
-        # Helper to categorize bucket
         def classify_bucket(row):
             earn = row['Net Earnings']
             lvl = row['Level']
@@ -453,19 +509,11 @@ elif selected_page == 'perf':
         with col_tbl1:
             st.markdown("### STANDARD")
             if not df_std.empty:
-                std_inc_buckets = {
-                    "<Rp 300,000": (df_std['Net Earnings'] < 300000),
-                    "Rp 300,000 - Rp 400,000": (df_std['Net Earnings'] >= 300000) & (df_std['Net Earnings'] < 400000),
-                    ">= Rp 400,000": (df_std['Net Earnings'] >= 400000)
-                }
+                std_inc_buckets = {"<Rp 300,000": (df_std['Net Earnings'] < 300000), "Rp 300,000 - Rp 400,000": (df_std['Net Earnings'] >= 300000) & (df_std['Net Earnings'] < 400000), ">= Rp 400,000": (df_std['Net Earnings'] >= 400000)}
                 st.write("**Klasifikasi Pendapatan**")
                 st.dataframe(get_bucket_stats(df_std, std_inc_buckets, "Klasifikasi Pendapatan"), hide_index=True, use_container_width=True)
-
-                std_hour_buckets = {
-                    "< 7 jam": (df_std['Total Online Hours'] < 7),
-                    "7-9 jam": (df_std['Total Online Hours'] >= 7) & (df_std['Total Online Hours'] < 9),
-                    ">= 9 jam": (df_std['Total Online Hours'] >= 9)
-                }
+                
+                std_hour_buckets = {"< 7 jam": (df_std['Total Online Hours'] < 7), "7-9 jam": (df_std['Total Online Hours'] >= 7) & (df_std['Total Online Hours'] < 9), ">= 9 jam": (df_std['Total Online Hours'] >= 9)}
                 st.write("**Klasifikasi Jam Online**")
                 st.dataframe(get_bucket_stats(df_std, std_hour_buckets, "Klasifikasi Jam Online"), hide_index=True, use_container_width=True)
             else: st.info("Tidak ada data Standard.")
@@ -473,29 +521,23 @@ elif selected_page == 'perf':
         with col_tbl2:
             st.markdown("### PREMIUM")
             if not df_prm.empty:
-                prm_inc_buckets = {
-                    "<Rp 500,000": (df_prm['Net Earnings'] < 500000),
-                    "Rp 500,000 - Rp 600,000": (df_prm['Net Earnings'] >= 500000) & (df_prm['Net Earnings'] < 600000),
-                    ">= Rp 600,000": (df_prm['Net Earnings'] >= 600000)
-                }
+                prm_inc_buckets = {"<Rp 500,000": (df_prm['Net Earnings'] < 500000), "Rp 500,000 - Rp 600,000": (df_prm['Net Earnings'] >= 500000) & (df_prm['Net Earnings'] < 600000), ">= Rp 600,000": (df_prm['Net Earnings'] >= 600000)}
                 st.write("**Klasifikasi Pendapatan**")
                 st.dataframe(get_bucket_stats(df_prm, prm_inc_buckets, "Klasifikasi Pendapatan"), hide_index=True, use_container_width=True)
-
-                prm_hour_buckets = {
-                    "< 7 jam": (df_prm['Total Online Hours'] < 7),
-                    "7-9 jam": (df_prm['Total Online Hours'] >= 7) & (df_prm['Total Online Hours'] < 9),
-                    ">= 9 jam": (df_prm['Total Online Hours'] >= 9)
-                }
+                
+                prm_hour_buckets = {"< 7 jam": (df_prm['Total Online Hours'] < 7), "7-9 jam": (df_prm['Total Online Hours'] >= 7) & (df_prm['Total Online Hours'] < 9), ">= 9 jam": (df_prm['Total Online Hours'] >= 9)}
                 st.write("**Klasifikasi Jam Online**")
                 st.dataframe(get_bucket_stats(df_prm, prm_hour_buckets, "Klasifikasi Jam Online"), hide_index=True, use_container_width=True)
             else: st.info("Tidak ada data Premium.")
 
-        # --- 5. TABEL SUMMARY PER DRIVER (SESUAI GAMBAR) ---
+        # --- 5. TABEL SUMMARY DRIVER ---
         st.divider()
         st.subheader("📋 Summary Driver")
         if not df_display.empty:
+            if 'Kode PT' not in df_display.columns: df_display['Kode PT'] = '-'
+            
             summary_driver = df_display.groupby(['Nama Driver', 'Kode PT', 'Level']).agg({
-                'Tanggal': 'nunique', # Total Hari Kerja
+                'Tanggal': 'nunique',
                 'Net Earnings': 'sum',
                 'Total Online Hours': 'sum',
                 'Total Trip Hours': 'sum',
@@ -504,18 +546,13 @@ elif selected_page == 'perf':
                 'Total Driver Cancelled': 'sum'
             }).reset_index()
             
-            # Hitung Earning Rata2
             summary_driver['Earning Rata2'] = summary_driver['Net Earnings'] / summary_driver['Total Completed Order'].replace(0, 1)
-            
-            # Ranking
             summary_driver['Rank'] = summary_driver['Net Earnings'].rank(ascending=False, method='min').astype(int)
             summary_driver = summary_driver.sort_values('Rank')
             
-            # Format Rupiah
             summary_driver['Pendapatan Bersih'] = summary_driver['Net Earnings'].apply(format_rupiah)
             summary_driver['Earning Rata2'] = summary_driver['Earning Rata2'].apply(format_rupiah)
             
-            # Rename Columns to Match Image
             summary_driver = summary_driver.rename(columns={
                 'Tanggal': 'Total Hari Kerja',
                 'Total Online Hours': 'Jam Online',
@@ -525,49 +562,38 @@ elif selected_page == 'perf':
                 'Total Driver Cancelled': 'Total Driver Cancelled'
             })
             
-            # Reorder Columns (Add No as Index simulation)
             final_cols = ['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 
                           'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 
                           'Total Driver Cancelled', 'Earning Rata2']
             
-            # Reset index to create "No" column effect if needed, or just hide index
             st.dataframe(
                 summary_driver[final_cols], 
                 hide_index=True, 
                 use_container_width=True,
-                column_config={
-                    "Jam Online": st.column_config.NumberColumn(format="%.1f"),
-                    "Jam Trip": st.column_config.NumberColumn(format="%.1f")
-                }
+                column_config={"Jam Online": st.column_config.NumberColumn(format="%.1f"), "Jam Trip": st.column_config.NumberColumn(format="%.1f")}
             )
         else:
             st.info("Data tidak ditemukan.")
 
-        # --- 6. TABEL DETAIL HARIAN (WARNA WARNI) ---
+        # --- 6. TABEL DETAIL HARIAN ---
         st.divider()
         st.subheader("📝 Detail Transaksi Harian")
-        
-        # Rename for display
         df_display['Tanggal'] = pd.to_datetime(df_display['Tanggal']).dt.date
         
-        # Logic Pewarnaan
         def highlight_logic(row):
             earn = row['Net Earnings']
             hours = row['Total Online Hours']
             level = row['Level']
             color = ''
-            
             if level == 'Standard':
-                if earn < 300000 and hours < 7: color = 'background-color: #ffcccc' # Red
-                elif (300000 <= earn < 400000) and (7 <= hours < 9): color = 'background-color: #fff4cc' # Yellow
-                elif earn >= 400000 and hours >= 9: color = 'background-color: #ccffcc' # Green
-                elif earn >= 600000 and hours >= 9: color = 'background-color: #99ff99' # Darker Green
-            
+                if earn < 300000 and hours < 7: color = 'background-color: #ffcccc'
+                elif (300000 <= earn < 400000) and (7 <= hours < 9): color = 'background-color: #fff4cc'
+                elif earn >= 400000 and hours >= 9: color = 'background-color: #ccffcc'
+                elif earn >= 600000 and hours >= 9: color = 'background-color: #99ff99'
             elif level == 'Premium':
                 if earn < 500000 and hours < 7: color = 'background-color: #ffcccc'
                 elif (500000 <= earn < 600000) and (7 <= hours < 9): color = 'background-color: #fff4cc'
                 elif earn >= 600000 and hours >= 9: color = 'background-color: #ccffcc'
-            
             return [color] * len(row)
 
         st.dataframe(
@@ -587,7 +613,7 @@ elif selected_page == 'perf':
         st.info(t('no_data'))
 
 # ==========================================
-# 7. HALAMAN 3: DATA DRIVER (TETAP)
+# 7. HALAMAN 3: DATA DRIVER (BARU - SUPABASE)
 # ==========================================
 elif selected_page == 'data':
     st.title(t('data_title'))
@@ -598,23 +624,27 @@ elif selected_page == 'data':
         if up_driver:
             try:
                 temp_df = pd.read_excel(up_driver)
-                if 'Nama Driver' in temp_df.columns and temp_df['Nama Driver'].duplicated().any():
-                    st.error("Error: Duplicate Name")
-                else:
-                    st.session_state['driver_data'] = temp_df
-                    st.success("Success!")
-            except Exception as e: st.error(f"Error: {e}")
+                with st.spinner("Saving driver data to Supabase..."):
+                    if save_driver_data(temp_df):
+                        st.session_state['driver_data'] = load_driver_data()
+                        st.success("Driver data berhasil disimpan ke Supabase!")
+                        st.rerun()
+            except Exception as e: st.error(f"Upload Error: {e}")
 
     with col_dl:
-        st.write(""); st.write("")
+        st.write("")
+        st.write("")
         st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('driver'), "template_driver.xlsx")
         
-    if 'driver_data' in st.session_state:
-        df_d = st.session_state['driver_data']
+    if 'driver_data' not in st.session_state:
+        st.session_state['driver_data'] = load_driver_data()
+    
+    df_d = st.session_state['driver_data']
+    if not df_d.empty:
         k1, k2 = st.columns(2)
         k1.metric(t('stat_total'), len(df_d))
         active = len(df_d[df_d['Status'] == 'Active']) if 'Status' in df_d.columns else 0
         k2.metric(t('stat_active'), active)
-        st.data_editor(df_d, num_rows="dynamic", use_container_width=True)
+        st.dataframe(df_d, use_container_width=True)
     else:
-        st.info(t('no_data'))
+        st.info("Belum ada data driver di Supabase.")
