@@ -401,7 +401,14 @@ elif selected_page == 'perf':
             show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
             st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
         
-        st.divider(); st.subheader("📝 Detail Harian"); df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
+        st.divider(); st.subheader("📝 Detail Harian")
+        
+        # --- PERUBAHAN DISINI: ID JADI BERURUTAN ---
+        df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
+        df_show_harian = df_disp.copy()
+        df_show_harian['id'] = range(1, len(df_show_harian) + 1)
+        # -----------------------------------------
+
         def hl(row):
             e, h, l, c = row['Net Earnings'], row['Total Online Hours'], row['Level'], ''
             if l == 'Standard':
@@ -413,7 +420,8 @@ elif selected_page == 'perf':
                 elif 500000<=e<600000 and 7<=h<9: c='#fff4cc'
                 elif e>=600000 and h>=9: c='#ccffcc'
             return [f'background-color: {c}']*len(row) if c else ['']*len(row)
-        st.dataframe(df_disp.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
+
+        st.dataframe(df_show_harian.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
 
 # ==========================================
 # 7. DATA DRIVER
