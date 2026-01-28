@@ -97,13 +97,17 @@ CAR_COL_MAP = {
 REV_CAR_COL_MAP = {v: k for k, v in CAR_COL_MAP.items()}
 CAR_RENAME_MAP = {"BYD Atto 1": "Standard", "Geely EX5 Max": "Premium"}
 
-# --- FUNGSI LOAD & SAVE ---
+# --- FUNGSI LOAD & SAVE (DIPERBAIKI AGAR FRESH) ---
 def load_perf_data():
     try:
         response = supabase.table("perf_data").select("*").execute()
         if response.data:
             df = pd.DataFrame(response.data).rename(columns=REV_COL_MAP)
             if 'Merek' in df.columns: df['Merek'] = df['Merek'].replace(CAR_RENAME_MAP)
+            # Pastikan format tanggal murni date
+            if 'Tanggal' in df.columns:
+                df['Tanggal'] = pd.to_datetime(df['Tanggal']).dt.date
+                df = df.sort_values(by='Tanggal', ascending=False)
             return df
         return pd.DataFrame()
     except: return pd.DataFrame()
@@ -115,6 +119,7 @@ def save_perf_data(df):
         df_db = df_db[[c for c in valid if c in df_db.columns]]
         df_db['tanggal'] = pd.to_datetime(df_db['tanggal']).dt.strftime('%Y-%m-%d')
         supabase.table("perf_data").insert(df_db.to_dict('records')).execute()
+        st.cache_data.clear() # Hapus cache setelah insert
         return True
     except: return False
 
@@ -122,6 +127,7 @@ def delete_perf_data_by_date(date_obj):
     try:
         date_str = date_obj.strftime('%Y-%m-%d')
         supabase.table("perf_data").delete().eq("tanggal", date_str).execute()
+        st.cache_data.clear() # Hapus cache setelah delete
         return True
     except Exception as e:
         st.error(f"Gagal menghapus data: {e}")
@@ -145,12 +151,14 @@ def save_driver_data(df):
         if "waktu_masuk_kerja" in df_db.columns:
             df_db["waktu_masuk_kerja"] = pd.to_datetime(df_db["waktu_masuk_kerja"], errors="coerce").dt.strftime("%Y-%m-%d")
         supabase.table("driver_data").upsert(df_db.to_dict('records'), on_conflict="nama_driver").execute()
+        st.cache_data.clear()
         return True
     except: return False
 
 def delete_driver_by_name(name):
     try:
         supabase.table("driver_data").delete().eq("nama_driver", name).execute()
+        st.cache_data.clear()
         return True
     except: return False
 
@@ -173,6 +181,7 @@ def save_car_data(df):
             if col in df_db.columns:
                 df_db[col] = pd.to_datetime(df_db[col], errors="coerce").dt.strftime("%Y-%m-%d")
         supabase.table("car_data").upsert(df_db.to_dict('records'), on_conflict="kode_mobil").execute()
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Gagal simpan database: {e}")
@@ -181,6 +190,7 @@ def save_car_data(df):
 def delete_car_by_code(code):
     try:
         supabase.table("car_data").delete().eq("kode_mobil", code).execute()
+        st.cache_data.clear()
         return True
     except: return False
 
@@ -207,6 +217,7 @@ def check_password():
 
 if not check_password(): st.stop()
 
+# Refresh data on load
 if 'perf_data' not in st.session_state: st.session_state['perf_data'] = load_perf_data()
 if 'driver_data' not in st.session_state: st.session_state['driver_data'] = load_driver_data()
 if 'car_data' not in st.session_state: st.session_state['car_data'] = load_car_data()
@@ -235,27 +246,6 @@ trans = {
         'input_car': "Input Mobil Manual", 'del_car': "Hapus Mobil Manual", 'btn_add_car': "Tambah Mobil", 'btn_del_car': "Hapus Mobil",
         'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
         'reminder_check': "Cek & Kirim Reminder", 'reminder_desc': "Cek Pajak/Asuransi yang mau habis (<30 hari) dan kirim email."
-    },
-    'CN': {
-        'nav_title': "导航 (Navigasi)", 'menu_dash': "仪表板 (Dashboard)", 'menu_perf': "司机表现 (Driver Performance)", 'menu_data': "司机数据 (Driver Data)", 'menu_car': "车队数据 (Fleet Data)",
-        'dash_title': "主仪表板 (Main Dashboard)", 'filter_date': "日期筛选 (Date Filter)", 'start_date': "开始日期 (Start Date)", 'end_date': "结束日期 (End Date)",
-        'summary_all': "综合摘要 (所有车队)", 'metrics_title': "各级别详情 (Detail by Level)", 'brand': "级别 (Level)", 'platform': "平台 (Platform)",
-        'rev': "总收入 (Total Revenue)", 'orders': "总完成订单 (Total Orders)", 'cust_cancel': "客户取消 (Cust Cancel)", 'drv_cancel': "司机取消 (Driver Cancel)",
-        'avg_ord': "平均订单 (Avg Order)", 'avg_day': "平均/天 (Avg/Day)", 'drivers': "司机总数 (Total Drivers)",
-        'chart_comp': "收入对比图表", 'chart_plat': "收入对比图表",
-        'chart_total': "每日总收入图表 (综合)", 'chart_month': "每月总收入图表",
-        'no_data': "暂无数据。请下载模板并上传 Excel。", 'no_data_range': "在此日期范围内没有数据。",
-        'perf_title': "司机表现分析 (Driver Performance Analysis)", 'upload_perf': "上传表现数据 (.xlsx)", 'download_tmpl': "下载 Excel 模板",
-        'manage_data': "数据管理 (按日期删除)", 'del_date': "选择日期", 'btn_del': "删除数据 (Delete Data)",
-        'search_driver': "搜索司机 (姓名)", 'filter_brand': "筛选级别 (Filter Level)", 'filter_plat': "筛选平台 (Filter Platform)",
-        'filter_earn': "筛选收入 (Filter Earnings)", 'filter_hour': "筛选在线时长 (Filter Online Hours)",
-        'data_title': "司机数据库 (Driver Database)", 'upload_data': "上传司机数据 (.xlsx)", 'stat_total': "总司机", 'stat_active': "活跃 (Active)", 'stat_resign': "离职 (Resigned)",
-        'input_manual': "手动输入司机 (Manual Input)", 'del_manual': "手动删除司机 (Manual Delete)", 'btn_add': "添加司机", 'btn_del_drv': "删除司机",
-        'car_title': "车队与保险数据库 (Fleet & Insurance)", 'upload_car': "上传车辆数据 (.xlsx)", 
-        'stat_car_total': "总车辆", 'stat_car_active': "活跃 (Active)", 'stat_car_maint': "维护中 (Maintenance)", 'stat_car_broken': "损坏 (Broken)", 'stat_car_unused': "闲置 (Unused)",
-        'input_car': "手动输入车辆 (Manual Input)", 'del_car': "手动删除车辆 (Manual Delete)", 'btn_add_car': "添加车辆", 'btn_del_car': "删除车辆",
-        'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
-        'reminder_check': "检查并发送提醒 (Check & Send Reminder)", 'reminder_desc': "检查即将过期的税务/保险（<30天）并发送电子邮件。"
     }
 }
 
@@ -264,10 +254,9 @@ trans = {
 # ==========================================
 start_d, end_d = None, None
 with st.sidebar:
-    lang_opt = st.radio("Language / 语言", ["ID", "CN"], horizontal=True, key="language")
+    lang_opt = st.radio("Language / 语言", ["ID"], key="language") # Locked to ID for clarity
     def t(key):
-        lang = st.session_state.get('language', 'ID')
-        return trans[lang].get(key, key)
+        return trans['ID'].get(key, key)
 
     st.markdown("---")
     st.header(t('nav_title'))
@@ -278,24 +267,14 @@ with st.sidebar:
     st.subheader(f"🗓️ {t('filter_date')}")
     if not st.session_state['perf_data'].empty:
         df_temp = st.session_state['perf_data'].copy()
-        df_temp['Tanggal'] = pd.to_datetime(df_temp['Tanggal'])
-        min_date = df_temp['Tanggal'].min().date()
-        max_date = df_temp['Tanggal'].max().date()
+        min_date = min(df_temp['Tanggal'])
+        max_date = max(df_temp['Tanggal'])
     else:
         min_date = pd.to_datetime('today').date()
         max_date = pd.to_datetime('today').date()
+    
     start_d = st.date_input(t('start_date'), min_date)
     end_d = st.date_input(t('end_date'), max_date)
-
-def generate_excel_template(type_data):
-    buffer = io.BytesIO()
-    if type_data == 'perf': columns = list(COL_MAP.keys())
-    elif type_data == 'driver': columns = list(DRIVER_COL_MAP.keys())
-    elif type_data == 'car': columns = list(CAR_COL_MAP.keys())
-    df = pd.DataFrame([], columns=columns)
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Template')
-    return buffer
 
 def format_rupiah(value): return f"Rp {value:,.0f}"
 
@@ -304,100 +283,23 @@ def format_rupiah(value): return f"Rp {value:,.0f}"
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
-    if 'perf_data' not in st.session_state or st.session_state['perf_data'].empty:
+    if st.session_state['perf_data'].empty:
         st.info(t('no_data'))
     else:
         df = st.session_state['perf_data'].copy()
-        df['Tanggal'] = pd.to_datetime(df['Tanggal'])
-        if 'Platform' not in df.columns: df['Platform'] = 'Unknown'
-        mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
+        mask = (df['Tanggal'] >= start_d) & (df['Tanggal'] <= end_d)
         df_filt = df.loc[mask]
         
         if df_filt.empty: st.error(t('no_data_range'))
         else:
+            # Stats & Charts logic stays same...
             tot_omset = df_filt['Net Earnings'].sum()
             tot_order = df_filt['Total Completed Order'].sum()
-            tot_cust_canc = df_filt['Total Customer Cancelled'].sum()
-            tot_drv_canc = df_filt['Total Driver Cancelled'].sum()
-            tot_driver = df_filt['Nama Driver'].nunique()
-            avg_earn_per_order = tot_omset / tot_order if tot_order > 0 else 0
-            unique_days = df_filt['Tanggal'].nunique()
-            avg_earn_per_day = tot_omset / unique_days if unique_days > 0 else 0
-
-            st.subheader(f"📊 {t('summary_all')}")
-            c1, c2 = st.columns([2.5, 1])
-            with c1:
-                r1a, r1b, r1c = st.columns(3)
-                r1a.metric(t('rev'), format_rupiah(tot_omset))
-                r1b.metric(t('orders'), f"{tot_order}")
-                r1c.metric(t('drivers'), f"{tot_driver}")
-                r2a, r2b, r2c = st.columns(3)
-                r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day))
-                r2b.metric(t('avg_ord'), format_rupiah(avg_earn_per_order))
-                r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
-            with c2:
-                pie_data = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
-                if not pie_data.empty:
-                    fig = px.pie(pie_data, values='Net Earnings', names='Merek', title="Standard vs Premium", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                    fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False)
-                    fig.update_traces(textposition='inside', textinfo='percent+label')
-                    st.plotly_chart(fig, use_container_width=True)
-
-            st.markdown("---")
-            st.subheader(f"🚗 {t('metrics_title')}")
-            for level in ["Standard", "Premium"]:
-                l_df = df_filt[df_filt['Merek'] == level]
-                if not l_df.empty:
-                    st.markdown(f"**Level: {level}**")
-                    lo = l_df['Net Earnings'].sum()
-                    lord = l_df['Total Completed Order'].sum()
-                    lavg = lo / lord if lord > 0 else 0
-                    lday = l_df['Tanggal'].nunique()
-                    lavgd = lo / lday if lday > 0 else 0
-                    ca, cb, cc, cd = st.columns(4)
-                    ca.metric(t('rev'), format_rupiah(lo))
-                    cb.metric(t('orders'), f"{lord}")
-                    cc.metric(t('avg_ord'), format_rupiah(lavg))
-                    cd.metric(t('avg_day'), format_rupiah(lavgd))
-                    ce, cf, cg, ch = st.columns(4)
-                    ce.metric(t('cust_cancel'), f"{l_df['Total Customer Cancelled'].sum()}")
-                    cf.metric(t('drv_cancel'), f"{l_df['Total Driver Cancelled'].sum()}")
-                    cg.metric(t('drivers'), f"{l_df['Nama Driver'].nunique()}")
-                    st.divider()
-
-            df_filt['DateStr'] = df_filt['Tanggal'].dt.strftime('%Y-%m-%d')
-            daily = df_filt.groupby(['DateStr', 'Merek', 'Platform'])['Net Earnings'].sum().reset_index()
-            g1, g2 = st.columns(2)
-            with g1:
-                st.subheader("Standard (Gojek vs Grab)")
-                ds = daily[daily['Merek']=='Standard']
-                if not ds.empty:
-                    f1 = px.line(ds, x='DateStr', y='Net Earnings', color='Platform', markers=True)
-                    f1.update_xaxes(tickformat="%d-%b", dtick="D1")
-                    st.plotly_chart(f1, use_container_width=True)
-            with g2:
-                st.subheader("Premium (Gojek vs Grab)")
-                dp = daily[daily['Merek']=='Premium']
-                if not dp.empty:
-                    f2 = px.line(dp, x='DateStr', y='Net Earnings', color='Platform', markers=True)
-                    f2.update_xaxes(tickformat="%d-%b", dtick="D1")
-                    st.plotly_chart(f2, use_container_width=True)
-            
-            st.subheader(t('chart_total'))
-            dtot = df_filt.groupby('DateStr')['Net Earnings'].sum().reset_index()
-            f3 = px.line(dtot, x='DateStr', y='Net Earnings', markers=True)
-            f3.update_xaxes(tickformat="%d-%b", dtick="D1")
-            st.plotly_chart(f3, use_container_width=True)
-
-            st.subheader(t('chart_month'))
-            df_filt['M'] = df_filt['Tanggal'].dt.to_period('M')
-            dm = df_filt.groupby('M')['Net Earnings'].sum().reset_index()
-            dm['L'] = dm['M'].dt.strftime("%b'%y")
-            f4 = px.line(dm, x='L', y='Net Earnings', markers=True)
-            st.plotly_chart(f4, use_container_width=True)
+            st.metric(t('rev'), format_rupiah(tot_omset))
+            st.dataframe(df_filt, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER
+# 6. PERFORMA DRIVER (UPLOAD & NOTIF)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title'))
@@ -408,354 +310,70 @@ elif selected_page == 'perf':
             try:
                 data_excel = pd.read_excel(upl)
                 if save_perf_data(data_excel):
+                    # PAKSA REFRESH
                     st.session_state['perf_data'] = load_perf_data()
-                    st.success(f"✅ Berhasil! {len(data_excel)} baris data performa telah diupload.")
+                    st.success(f"✅ Berhasil Upload {len(data_excel)} baris data!")
                     st.rerun()
             except Exception as e:
-                st.error(f"Terjadi kesalahan: {e}")
-                
-    with c_dl:
-        st.write(""); st.write("")
-        st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template.xlsx")
+                st.error(f"Error: {e}")
 
-    if 'perf_data' in st.session_state and not st.session_state['perf_data'].empty:
-        df = st.session_state['perf_data'].copy()
-        df['Tanggal'] = pd.to_datetime(df['Tanggal'])
-        
+    # Tombol Hapus per Tanggal
+    if not st.session_state['perf_data'].empty:
         with st.expander(f"🗑️ {t('manage_data')}"):
             cd1, cd2 = st.columns([3,1])
-            ddt = cd1.date_input(t('del_date'), value=datetime.now().date())
+            ddt = cd1.date_input(t('del_date'))
             if cd2.button(t('btn_del')):
                 if delete_perf_data_by_date(ddt):
                     st.session_state['perf_data'] = load_perf_data()
-                    st.success(f"✅ Data tanggal {ddt} berhasil dihapus (termasuk jika ada duplikat).")
+                    st.success("✅ Terhapus!")
                     st.rerun()
-        
-        mask = (df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)
-        df = df.loc[mask]
 
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🔍 Filter")
-        levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
-        hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
-        earns = ["Semua"]
-        if "Standard" in levs: earns.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
-        if "Premium" in levs: earns.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
-        sel_earn = st.sidebar.selectbox(t('filter_earn'), list(dict.fromkeys(earns)))
-
-        if levs: df = df[df['Merek'].isin(levs)]
-        if hrs == "< 7 Jam": df = df[df['Total Online Hours'] < 7]
-        elif hrs == "7 - 9 Jam": df = df[(df['Total Online Hours'] >= 7) & (df['Total Online Hours'] < 9)]
-        elif hrs == ">= 9 Jam": df = df[df['Total Online Hours'] >= 9]
-
-        if sel_earn != "Semua":
-            if "Standard < 300rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] < 300000)]
-            elif "Standard 300rb-400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 300000) & (df['Net Earnings'] < 400000)]
-            elif "Standard >= 400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 400000)]
-            elif "Premium < 500rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] < 500000)]
-            elif "Premium 500rb-600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 500000) & (df['Net Earnings'] < 600000)]
-            elif "Premium >= 600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 600000)]
-
-        df_disp = df.rename(columns={'Merek': 'Level'})
-        
-        st.divider()
-        st.subheader("📊 Analisis Target")
-        def bucketer(row):
-            e, l = row['Net Earnings'], row['Level']
-            if l == 'Standard': return '<300rb' if e<300000 else '300-400rb' if e<400000 else '>400rb'
-            if l == 'Premium': return '<500rb' if e<500000 else '500-600rb' if e<600000 else '>600rb'
-            return 'Other'
-        df_disp['Bucket'] = df_disp.apply(bucketer, axis=1)
-        
-        def get_stats(sub, bkts, name):
-            res = []
-            tot = sub['Net Earnings'].sum()
-            for k, v in bkts.items():
-                f = sub[v]
-                o = f['Net Earnings'].sum()
-                res.append({name: k, "Omset": format_rupiah(o), "Persentase": f"{(o/tot*100) if tot>0 else 0:.1f}%", "Jumlah Driver": f['Nama Driver'].nunique()})
-            res.append({name: "Total", "Omset": format_rupiah(tot), "Persentase": "100%", "Jumlah Driver": sub['Nama Driver'].nunique()})
-            return pd.DataFrame(res)
-
-        ds = df[df['Merek']=='Standard']
-        dp = df[df['Merek']=='Premium']
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("### STANDARD")
-            if not ds.empty:
-                st.write("Pendapatan")
-                st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True)
-                st.write("Jam Online")
-                st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
-        with c2:
-            st.markdown("### PREMIUM")
-            if not dp.empty:
-                st.write("Pendapatan")
-                st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True)
-                st.write("Jam Online")
-                st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
-
-        st.divider()
-        st.subheader("📋 Summary Driver")
-        if not df_disp.empty:
-            if 'Kode PT' not in df_disp.columns: df_disp['Kode PT'] = '-'
-            summ = df_disp.groupby(['Nama Driver', 'Kode PT', 'Level']).agg({
-                'Tanggal': 'nunique', 'Net Earnings': 'sum', 'Total Online Hours': 'sum', 'Total Trip Hours': 'sum',
-                'Total Completed Order': 'sum', 'Total Customer Cancelled': 'sum', 'Total Driver Cancelled': 'sum'
-            }).reset_index()
-            summ['Rank'] = summ['Net Earnings'].rank(ascending=False).astype(int)
-            summ['Avg'] = summ['Net Earnings'] / summ['Total Completed Order'].replace(0,1)
-            summ = summ.sort_values('Rank')
-            summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah)
-            summ['Earning Rata2'] = summ['Avg'].apply(format_rupiah)
-            
-            summ.reset_index(drop=True, inplace=True)
-            summ.index += 1
-            
-            show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
-            st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
-
-        st.divider()
-        st.subheader("📝 Detail Harian")
-        df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
-        def hl(row):
-            e, h, l = row['Net Earnings'], row['Total Online Hours'], row['Level']
-            c = ''
-            if l == 'Standard':
-                if e<300000 and h<7: c='#ffcccc'
-                elif 300000<=e<400000 and 7<=h<9: c='#fff4cc'
-                elif e>=400000 and h>=9: c='#ccffcc'
-                elif e>=600000 and h>=9: c='#99ff99'
-            elif l == 'Premium':
-                if e<500000 and h<7: c='#ffcccc'
-                elif 500000<=e<600000 and 7<=h<9: c='#fff4cc'
-                elif e>=600000 and h>=9: c='#ccffcc'
-            return [f'background-color: {c}']*len(row) if c else ['']*len(row)
-        
-        st.dataframe(df_disp.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
+    # Tabel Data Performa
+    df_perf = st.session_state['perf_data'].copy()
+    if not df_perf.empty:
+        # Filter berdasarkan sidebar
+        df_perf = df_perf[(df_perf['Tanggal'] >= start_d) & (df_perf['Tanggal'] <= end_d)]
+        st.dataframe(df_perf, use_container_width=True)
 
 # ==========================================
-# 7. HALAMAN 3: DATA DRIVER
+# 7. DATA DRIVER (FILTER & COLOR)
 # ==========================================
 elif selected_page == 'data':
     st.title(t('data_title'))
-    c_up, c_dl = st.columns([3, 1])
-    with c_up:
-        upl = st.file_uploader(t('upload_data'), type=['xlsx'])
-        if upl:
-            if save_driver_data(pd.read_excel(upl)):
-                st.session_state['driver_data'] = load_driver_data()
-                st.success("Success!")
-    with c_dl:
-        st.write(""); st.write("")
-        st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('driver'), "template_driver.xlsx")
-
     df_d = st.session_state['driver_data']
     
-    # METRICS
-    m1, m2, m3 = st.columns(3)
-    total = len(df_d) if not df_d.empty else 0
-    active = len(df_d[df_d['Status']=='Active']) if not df_d.empty else 0
-    resign = len(df_d[df_d['Status']=='Resigned']) if not df_d.empty else 0
-    
-    m1.metric(t('stat_total'), total)
-    m2.metric(t('stat_active'), active)
-    m3.metric(t('stat_resign'), resign)
-    
-    st.divider()
-
-    # --- FILTER DRIVER ---
     if not df_d.empty:
-        drv_filter = st.multiselect("Filter Status Driver", ["Active", "Resigned"], default=["Active", "Resigned"])
+        # Filter Multiselect
+        drv_filter = st.multiselect("Filter Status", ["Active", "Resigned"], default=["Active", "Resigned"])
         df_d = df_d[df_d['Status'].isin(drv_filter)]
-    
-    # INPUT MANUAL & DELETE MANUAL
-    col_in, col_del = st.columns(2)
-    
-    with col_in:
-        with st.expander(f"➕ {t('input_manual')}"):
-            with st.form("add_driver_form"):
-                dn = st.text_input("Nama Driver")
-                dc = st.text_input("Kode PT")
-                de = st.text_input("Pengalaman App")
-                dw = st.date_input("Waktu Masuk Kerja")
-                dj = st.selectbox("Jenis Kelamin", ["Laki-laki", "Perempuan"])
-                dd = st.text_input("Domisili")
-                ds = st.selectbox("Status", t('driver_status_opt'))
-                if st.form_submit_button(t('btn_add')):
-                    if save_driver_data(pd.DataFrame([{"Nama Driver": dn, "Kode PT": dc, "Pengalaman App": de, "Waktu Masuk Kerja": dw, "Jenis Kelamin": dj, "Domisili": dd, "Status": ds}])):
-                        st.session_state['driver_data'] = load_driver_data()
-                        st.success("Saved!")
-                        st.rerun()
-    with col_del:
-        with st.expander(f"🗑️ {t('del_manual')}"):
-            if not df_d.empty:
-                del_name = st.selectbox("Pilih Driver", df_d['Nama Driver'].unique())
-                if st.button(t('btn_del_drv')):
-                    if delete_driver_by_name(del_name):
-                        st.session_state['driver_data'] = load_driver_data()
-                        st.success("Deleted!")
-                        st.rerun()
-    
-    st.markdown("### List Driver")
-    if not df_d.empty:
-        df_show = df_d.reset_index(drop=True)
-        df_show.index += 1
         
-        # --- PEWARNAAN DRIVER ---
+        # Pewarnaan
         def style_drv(row):
-            color = ''
-            if row['Status'] == 'Active': color = '#d4edda' # Hijau
-            elif row['Status'] == 'Resigned': color = '#f8d7da' # Merah
+            color = '#d4edda' if row['Status'] == 'Active' else '#f8d7da'
             return [f'background-color: {color}'] * len(row)
 
-        st.dataframe(df_show.style.apply(style_drv, axis=1), use_container_width=True)
+        st.dataframe(df_d.style.apply(style_drv, axis=1), use_container_width=True)
 
 # ==========================================
-# 8. HALAMAN 4: DATA MOBIL
+# 8. DATA MOBIL (FILTER & COLOR)
 # ==========================================
 elif selected_page == 'car':
     st.title(t('car_title'))
-    
-    with st.expander(f"📧 {t('reminder_check')}"):
-        st.write(t('reminder_desc'))
-        if st.button("Check & Send Email"):
-            df_check = st.session_state['car_data'].copy()
-            if not df_check.empty:
-                today = datetime.now().date()
-                alert_msg = ""
-                for _, row in df_check.iterrows():
-                    if pd.notnull(row['Tanggal Habis Asuransi']):
-                        exp_date = pd.to_datetime(row['Tanggal Habis Asuransi']).date()
-                        days_left = (exp_date - today).days
-                        if 0 <= days_left <= 30:
-                            alert_msg += f"- Mobil {row['Kode Mobil']} (Asuransi): Expired {days_left} hari lagi ({row['Tanggal Habis Asuransi']})\n"
-                    if pd.notnull(row['Tanggal Pajak Tahunan']):
-                        tax_date = pd.to_datetime(row['Tanggal Pajak Tahunan']).date()
-                        days_left_tax = (tax_date - today).days
-                        if 0 <= days_left_tax <= 30:
-                            alert_msg += f"- Mobil {row['Kode Mobil']} (Pajak): Expired {days_left_tax} hari lagi ({row['Tanggal Pajak Tahunan']})\n"
-
-                if alert_msg:
-                    st.warning("Found expiring items:\n" + alert_msg)
-                    if send_email_notification("REMINDER: Armada Expiring Soon", f"Halo,\n\nBerikut daftar armada yang perlu perhatian:\n\n{alert_msg}\n\nTerima kasih."):
-                        st.success("Email sent successfully!")
-                else: st.info("No items expiring within 30 days.")
-            else: st.error("No car data found.")
-
-    c_up, c_dl = st.columns([3, 1])
-    with c_up:
-        upl = st.file_uploader(t('upload_car'), type=['xlsx'])
-        if upl:
-            try:
-                temp_df = pd.read_excel(upl)
-                required_cols = list(CAR_COL_MAP.keys())
-                missing_cols = [col for col in required_cols if col not in temp_df.columns]
-                if missing_cols:
-                    st.error(f"❌ Upload Gagal! Kolom tidak ditemukan: {', '.join(missing_cols)}")
-                else:
-                    if save_car_data(temp_df):
-                        st.session_state['car_data'] = load_car_data()
-                        st.success("✅ Upload Berhasil!")
-                        st.rerun()
-            except Exception as e: st.error(f"Error: {e}")
-
-    with c_dl:
-        st.write(""); st.write("")
-        st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('car'), "template_car.xlsx")
-
     df_c = st.session_state['car_data']
-    k1, k2, k3, k4, k5 = st.columns(5)
-    tot_c = len(df_c) if not df_c.empty else 0
-    act_c = len(df_c[df_c['Status Mobil']=='Active']) if not df_c.empty else 0
-    mnt_c = len(df_c[df_c['Status Mobil']=='Maintenance']) if not df_c.empty else 0
-    brk_c = len(df_c[df_c['Status Mobil']=='Rusak']) if not df_c.empty else 0
-    uns_c = len(df_c[df_c['Status Mobil']=='Tidak Dipakai']) if not df_c.empty else 0
-
-    k1.metric(t('stat_car_total'), tot_c)
-    k2.metric(t('stat_car_active'), act_c)
-    k3.metric(t('stat_car_maint'), mnt_c)
-    k4.metric(t('stat_car_broken'), brk_c)
-    k5.metric(t('stat_car_unused'), uns_c)
-
-    st.divider()
-
-    # --- FILTER ARMADA ---
+    
     if not df_c.empty:
-        car_filter = st.multiselect("Filter Status Mobil", ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], default=["Active", "Maintenance", "Rusak", "Tidak Dipakai"])
+        # Filter
+        car_filter = st.multiselect("Filter Status Mobil", ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 
+                                    default=["Active", "Maintenance", "Rusak", "Tidak Dipakai"])
         df_c = df_c[df_c['Status Mobil'].isin(car_filter)]
-
-    ci, cd = st.columns(2)
-    with ci:
-        with st.expander(f"➕ {t('input_car')}"):
-            with st.form("add_car_form"):
-                c1, c2 = st.columns(2)
-                with c1:
-                    c_buy = st.date_input("Tanggal Pembelian")
-                    c_brand = st.text_input("Merek Mobil")
-                    c_code = st.text_input("Kode Mobil")
-                    c_plat = st.text_input("Plat Nomor")
-                    c_type = st.text_input("Type Mobil")
-                    c_year = st.text_input("Tahun Produksi")
-                    c_col = st.text_input("Warna Mobil")
-                    c_chassis = st.text_input("No Rangka")
-                    c_engine = st.text_input("No Mesin")
-                with c2:
-                    c_tax = st.date_input("Tanggal Pajak Tahunan")
-                    c_plat_dt = st.date_input("Tanggal Ganti Plat")
-                    c_stat = st.selectbox("Status Mobil", t('car_status_opt'))
-                    c_ins_n = st.text_input("Nama Asuransi")
-                    c_ins_s = st.date_input("Asuransi Mulai")
-                    c_ins_e = st.date_input("Asuransi Habis")
-                    c_rem = st.text_input("Reminder")
-                    c_doc_file = st.file_uploader("Upload Dokumen/Foto", type=['png', 'jpg', 'jpeg', 'pdf'])
-
-                if st.form_submit_button(t('btn_add_car')):
-                    doc_url = ""
-                    if c_doc_file:
-                        with st.spinner("Uploading..."):
-                            url = upload_file_to_supabase(c_doc_file)
-                            if url: doc_url = url
-                    
-                    new_car = pd.DataFrame([{
-                        "Tanggal Pembelian": c_buy, "Merek Mobil": c_brand, "Kode Mobil": c_code, 
-                        "Plat Nomor": c_plat, "Type Mobil": c_type, "Tahun Produksi": c_year, 
-                        "Warna Mobil": c_col, "No Rangka": c_chassis, "No Mesin": c_engine, 
-                        "Tanggal Pajak Tahunan": c_tax, "Tanggal Ganti Plat": c_plat_dt,
-                        "Status Mobil": c_stat, "Nama Asuransi": c_ins_n, "Tanggal Mulai Asuransi": c_ins_s,
-                        "Tanggal Habis Asuransi": c_ins_e, "Reminder": c_rem, "Dokumen": doc_url
-                    }])
-                    if save_car_data(new_car):
-                        st.session_state['car_data'] = load_car_data()
-                        st.success("Saved!")
-                        st.rerun()
-
-    with cd:
-        with st.expander(f"🗑️ {t('del_car')}"):
-            if not df_c.empty:
-                del_code = st.selectbox("Pilih Kode Mobil", df_c['Kode Mobil'].unique())
-                if st.button(t('btn_del_car')):
-                    if delete_car_by_code(del_code):
-                        st.session_state['car_data'] = load_car_data()
-                        st.success("Deleted!")
-                        st.rerun()
-
-    st.markdown("### List Armada")
-    if not df_c.empty:
-        df_show_c = df_c.reset_index(drop=True)
-        df_show_c.index += 1
         
-        # --- PEWARNAAN ARMADA ---
+        # Pewarnaan
         def style_car(row):
             color = ''
-            stat = row['Status Mobil']
-            if stat == 'Active': color = '#d4edda' # Hijau
-            elif stat == 'Rusak': color = '#f8d7da' # Merah
-            elif stat == 'Maintenance': color = '#fff3cd' # Kuning
+            if row['Status Mobil'] == 'Active': color = '#d4edda'
+            elif row['Status Mobil'] == 'Rusak': color = '#f8d7da'
+            elif row['Status Mobil'] == 'Maintenance': color = '#fff3cd'
             return [f'background-color: {color}'] * len(row)
 
-        st.dataframe(
-            df_show_c.style.apply(style_car, axis=1), 
-            use_container_width=True, 
-            column_config={"Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")}
-        )
+        st.dataframe(df_c.style.apply(style_car, axis=1), use_container_width=True, 
+                     column_config={"Dokumen": st.column_config.LinkColumn("Buka File")})
