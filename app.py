@@ -53,6 +53,29 @@ def send_email_notification(subject, body_text):
     except: return False
 
 # ==========================================
+# PATCH 1: Tambah Fungsi Normalize Shift (WAJIB)
+# ==========================================
+def format_rupiah(value): return f"Rp {value:,.0f}"
+
+# ✅ NORMALIZE SHIFT VALUE (Sesuai Patch 1 di foto)
+def normalize_shift(val):
+    if pd.isna(val):
+        return "Full day"
+    v = str(val).strip().lower()
+    
+    if v in ["pagi", "morning"]:
+        return "Pagi"
+    if v in ["malam", "night"]:
+        return "Malam"
+    
+    # Semua variasi Full Day
+    if v in ["full day", "fullday", "full-day", "full_day", "seharian"]:
+        return "Full day"
+    
+    # Default fallback
+    return "Full day"
+
+# ==========================================
 # MAPPING DATA (STEP 1: Tambah kolom Shift)
 # ==========================================
 COL_MAP = {
@@ -62,7 +85,7 @@ COL_MAP = {
     "Plat No": "plat_no", 
     "Merek": "merek", 
     "Platform": "platform",
-    "Shift": "shift",  # ✅ STEP 1-A: New Column Added
+    "Shift": "shift",  # ✅ STEP 1-A: Added to COL_MAP
     "Net Earnings": "net_earnings", 
     "Total Online Hours": "total_online_hours",
     "Total Trip Hours": "total_trip_hours", 
@@ -98,6 +121,11 @@ def load_perf_data():
         if response.data:
             df = pd.DataFrame(response.data).rename(columns=REV_COL_MAP)
             if 'Merek' in df.columns: df['Merek'] = df['Merek'].replace(CAR_RENAME_MAP)
+            
+            # ✅ PATCH 2: Normalize Shift Saat Load Data
+            if "Shift" in df.columns:
+                df["Shift"] = df["Shift"].apply(normalize_shift)
+                
             return df
         return pd.DataFrame()
     except: return pd.DataFrame()
@@ -105,6 +133,11 @@ def load_perf_data():
 def save_perf_data(df):
     try:
         df_db = df.rename(columns=COL_MAP)
+        
+        # ✅ PATCH 3: Normalize Shift Saat Upload Excel
+        if "shift" in df_db.columns:
+            df_db["shift"] = df_db["shift"].apply(normalize_shift)
+            
         df_db = df_db.dropna(subset=['tanggal'])
         valid = list(COL_MAP.values())
         df_db = df_db[[c for c in valid if c in df_db.columns]]
@@ -260,10 +293,8 @@ def generate_excel_template(type_data):
         df.to_excel(writer, index=False, sheet_name='Template')
     return buffer
 
-def format_rupiah(value): return f"Rp {value:,.0f}"
-
 # ==========================================
-# 5. DASHBOARD (STEP 3: Pie Chart Shift & Omset Shift)
+# 5. DASHBOARD (STEP 3 & PATCH 4: Shift Chart & Summary)
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -286,21 +317,21 @@ if selected_page == 'dash':
                 r1a, r1b, r1c = st.columns(3); r1a.metric(t('rev'), format_rupiah(tot_omset)); r1b.metric(t('orders'), f"{tot_order}"); r1c.metric(t('drivers'), f"{tot_driver}")
                 r2a, r2b, r2c = st.columns(3); r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day)); r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0)); r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
                 
-                # ✅ PATCH MINIMAL: OMSET PER SHIFT (DITARUH DI BAWAH RINGKASAN GABUNGAN)
+                # ✅ PATCH 4 & PATCH MINIMAL: OMSET PER SHIFT
                 if "Shift" in df_filt.columns:
-                    # Supaya kalau kosong tetap masuk Full Day
-                    df_filt["Shift"] = df_filt["Shift"].fillna("Full Day")
+                    # Supaya aman kalau ada data lama kosong (Sesuai foto Safe Data)
+                    df_filt["Shift"] = df_filt["Shift"].apply(normalize_shift)
                     
                     shift_summary = df_filt.groupby("Shift")["Net Earnings"].sum()
                     pagi = shift_summary.get("Pagi", 0)
                     malam = shift_summary.get("Malam", 0)
-                    full_day = shift_summary.get("Full Day", 0)
+                    full_day = shift_summary.get("Full day", 0)
                     
                     st.markdown("### 💰 Omset per Shift")
                     s1, s2, s3 = st.columns(3)
                     s1.metric("Pagi", format_rupiah(pagi))
                     s2.metric("Malam", format_rupiah(malam))
-                    s3.metric("Full Day", format_rupiah(full_day))
+                    s3.metric("Full day", format_rupiah(full_day))
 
             with c2:
                 # Chart 1: Standard vs Premium
@@ -340,7 +371,7 @@ if selected_page == 'dash':
             f4 = px.line(dm, x='L', y='Net Earnings', markers=True); st.plotly_chart(f4, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER (STEP 2: Filter Shift)
+# 6. PERFORMA DRIVER (STEP 2 & PATCH 5: Filter Shift)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title')); c_up, c_dl = st.columns([3, 1])
@@ -375,8 +406,8 @@ elif selected_page == 'perf':
         st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
         
-        # ✅ STEP 2: FILTER SHIFT
-        shift_opt = st.sidebar.multiselect("Filter Shift", ["Pagi", "Malam", "Full Day"], default=["Pagi", "Malam", "Full Day"])
+        # ✅ STEP 2 & PATCH 5: FILTER SHIFT
+        shift_opt = st.sidebar.multiselect("Filter Shift", ["Pagi", "Malam", "Full day"], default=["Pagi", "Malam", "Full day"])
         
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
         earns = ["Semua"]
@@ -384,8 +415,9 @@ elif selected_page == 'perf':
         if "Premium" in levs: earns.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
         sel_earn = st.sidebar.selectbox(t('filter_earn'), list(dict.fromkeys(earns)))
         
-        # ✅ Apply Filter Shift
+        # ✅ Apply Normalize Shift Before Filtering (Patch 5)
         if "Shift" in df.columns:
+            df["Shift"] = df["Shift"].apply(normalize_shift)
             df = df[df["Shift"].isin(shift_opt)]
             
         if levs: df = df[df['Merek'].isin(levs)]
