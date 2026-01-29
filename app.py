@@ -56,12 +56,19 @@ def send_email_notification(subject, body_text):
 # MAPPING DATA (STEP 1: Tambah Shift)
 # ==========================================
 COL_MAP = {
-    "Tanggal": "tanggal", "Nama Driver": "nama_driver", "Kode PT": "kode_pt",
-    "Plat No": "plat_no", "Merek": "merek", "Platform": "platform",
-    "Shift": "shift",  # ✅ ADDED PER STEP 1-A
-    "Net Earnings": "net_earnings", "Total Online Hours": "total_online_hours",
-    "Total Trip Hours": "total_trip_hours", "Total Completed Order": "total_completed_order",
-    "Total Customer Cancelled": "total_customer_cancelled", "Total Driver Cancelled": "total_driver_cancelled"
+    "Tanggal": "tanggal", 
+    "Nama Driver": "nama_driver", 
+    "Kode PT": "kode_pt",
+    "Plat No": "plat_no", 
+    "Merek": "merek", 
+    "Platform": "platform",
+    "Shift": "shift",  # ✅ STEP 1-A: Tambahkan ke COL_MAP
+    "Net Earnings": "net_earnings", 
+    "Total Online Hours": "total_online_hours",
+    "Total Trip Hours": "total_trip_hours", 
+    "Total Completed Order": "total_completed_order",
+    "Total Customer Cancelled": "total_customer_cancelled", 
+    "Total Driver Cancelled": "total_driver_cancelled"
 }
 REV_COL_MAP = {v: k for k, v in COL_MAP.items()}
 
@@ -105,7 +112,6 @@ def save_perf_data(df):
         for col in num_cols:
             if col in df_db.columns: df_db[col] = df_db[col].fillna(0)
         df_db['tanggal'] = pd.to_datetime(df_db['tanggal']).dt.strftime('%Y-%m-%d')
-        # Upsert with platform and shift constraints if necessary
         supabase.table("perf_data").upsert(df_db.to_dict('records'), on_conflict="tanggal,nama_driver,platform").execute()
         return True
     except Exception as e:
@@ -278,7 +284,7 @@ def generate_excel_template(type_data):
 def format_rupiah(value): return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. DASHBOARD (STEP 3: Tambah Pie Chart Shift)
+# 5. DASHBOARD (STEP 3 & PATCH: Shift Chart & Summary)
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -289,6 +295,10 @@ if selected_page == 'dash':
         df_filt = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         if df_filt.empty: st.error(t('no_data_range'))
         else:
+            # Recommended Safe Check
+            if "Shift" in df_filt.columns:
+                df_filt["Shift"] = df_filt["Shift"].fillna("Full Day")
+
             tot_omset = df_filt['Net Earnings'].sum(); tot_order = df_filt['Total Completed Order'].sum()
             tot_cust_canc = df_filt['Total Customer Cancelled'].sum(); tot_drv_canc = df_filt['Total Driver Cancelled'].sum()
             tot_driver = df_filt['Nama Driver'].nunique(); unique_days = df_filt['Tanggal'].nunique()
@@ -298,6 +308,7 @@ if selected_page == 'dash':
             with c1:
                 r1a, r1b, r1c = st.columns(3); r1a.metric(t('rev'), format_rupiah(tot_omset)); r1b.metric(t('orders'), f"{tot_order}"); r1c.metric(t('drivers'), f"{tot_driver}")
                 r2a, r2b, r2c = st.columns(3); r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day)); r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0)); r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
+            
             with c2:
                 # Chart 1: Standard vs Premium
                 pie_data = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
@@ -306,13 +317,26 @@ if selected_page == 'dash':
                     fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False); fig.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig, use_container_width=True)
                 
-                # ✅ CHART 2: PIE CHART SHIFT (PER STEP 3)
+                # ✅ STEP 3: PIE CHART SHIFT
                 if "Shift" in df_filt.columns:
                     pie_shift = df_filt.groupby("Shift")["Net Earnings"].sum().reset_index()
                     if not pie_shift.empty:
                         fig2 = px.pie(pie_shift, values="Net Earnings", names="Shift", title="Pagi vs Malam vs Full Day", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                        fig2.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False); fig2.update_traces(textposition="inside", textinfo="percent+label")
+                        fig2.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False)
+                        fig2.update_traces(textposition="inside", textinfo="percent+label")
                         st.plotly_chart(fig2, use_container_width=True)
+
+                        # ✅ PATCH: OMSET PER SHIFT SUMMARY
+                        shift_summary = df_filt.groupby("Shift")["Net Earnings"].sum()
+                        pagi = shift_summary.get("Pagi", 0)
+                        malam = shift_summary.get("Malam", 0)
+                        full_day = shift_summary.get("Full Day", 0)
+
+                        st.markdown("### 💰 Omset per Shift")
+                        s1, s2, s3 = st.columns(3)
+                        s1.metric("Pagi", format_rupiah(pagi))
+                        s2.metric("Malam", format_rupiah(malam))
+                        s3.metric("Full Day", format_rupiah(full_day))
 
             st.markdown("---"); st.subheader(f"🚗 {t('metrics_title')}")
             for level in ["Standard", "Premium"]:
@@ -370,7 +394,7 @@ elif selected_page == 'perf':
         st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
         
-        # ✅ FILTER SHIFT (PER STEP 2)
+        # ✅ STEP 2: FILTER SHIFT
         shift_opt = st.sidebar.multiselect("Filter Shift", ["Pagi", "Malam", "Full Day"], default=["Pagi", "Malam", "Full Day"])
         
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
