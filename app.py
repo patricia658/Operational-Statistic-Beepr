@@ -52,7 +52,7 @@ def send_email_notification(subject, body_text):
         return True
     except: return False
 
-# --- MAPPING DATA (TAMBAH SHIFT) ---
+# --- MAPPING DATA (DITAMBAH SHIFT) ---
 COL_MAP = {
     "Tanggal": "tanggal", "Nama Driver": "nama_driver", "Kode PT": "kode_pt",
     "Plat No": "plat_no", "Merek": "merek", "Platform": "platform", "Shift": "shift",
@@ -225,7 +225,7 @@ trans = {
         'avg_ord': "平均订单", 'avg_day': "平均/天", 'drivers': "司机总数",
         'chart_comp': "收入对比图表", 'chart_plat': "收入对比图表",
         'chart_total': "每日总收入图表", 'chart_month': "每月总收入图表",
-        'no_data': "暂无数据。请下载模板并上传 Excel。", 'no_data_range': "在此日期范围内没有数据。",
+        'no_data': "暂无 data。请下载模板并上传 Excel。", 'no_data_range': "在此日期范围内没有数据。",
         'perf_title': "司机表现分析", 'upload_perf': "上传表现数据 (.xlsx)", 'download_tmpl': "下载 Excel 模板",
         'manage_data': "数据管理", 'del_date': "选择日期", 'btn_del': "删除数据",
         'search_driver': "搜索司机", 'filter_brand': "筛选级别", 'filter_plat': "筛选平台",
@@ -271,7 +271,7 @@ def generate_excel_template(type_data):
 def format_rupiah(value): return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. DASHBOARD (TAMBAH TOTALAN SHIFT)
+# 5. DASHBOARD (DITAMBAH RINGKASAN SHIFT)
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -286,12 +286,10 @@ if selected_page == 'dash':
         else:
             tot_omset = df_filt['Net Earnings'].sum(); tot_order = df_filt['Total Completed Order'].sum()
             tot_driver = df_filt['Nama Driver'].nunique(); unique_days = df_filt['Tanggal'].nunique()
-            
             st.subheader(f"📊 {t('summary_all')}")
             c1, c2 = st.columns([2.5, 1])
             with c1:
                 r1a, r1b, r1c = st.columns(3); r1a.metric(t('rev'), format_rupiah(tot_omset)); r1b.metric(t('orders'), f"{tot_order}"); r1c.metric(t('drivers'), f"{tot_driver}")
-                
             with c2:
                 pie_data = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
                 if not pie_data.empty:
@@ -299,23 +297,19 @@ if selected_page == 'dash':
                     fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=200, showlegend=False); fig.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig, use_container_width=True)
 
-            # --- BAGIAN TOTALAN SHIFT ---
+            # --- BAGIAN TOTALAN PER SHIFT ---
             st.markdown("---")
-            st.subheader("⏰ Ringkasan Per Shift (Pagi, Malam, Full Day)")
+            st.subheader("⏰ Ringkasan Performa Shift (Pagi / Malam / Full Day)")
             sh1, sh2 = st.columns([1, 2])
             with sh1:
                 shift_pie = df_filt.groupby('Shift')['Net Earnings'].sum().reset_index()
-                fig_shift = px.pie(shift_pie, values='Net Earnings', names='Shift', hole=0.4, title="Distribusi Omset per Shift")
+                fig_shift = px.pie(shift_pie, values='Net Earnings', names='Shift', title="Omset per Shift", hole=0.4)
                 st.plotly_chart(fig_shift, use_container_width=True)
             with sh2:
-                shift_summary = df_filt.groupby('Shift').agg({
-                    'Net Earnings': 'sum',
-                    'Total Completed Order': 'sum',
-                    'Nama Driver': 'nunique'
-                }).reset_index()
-                shift_summary.columns = ['Shift', 'Total Omset', 'Total Order', 'Jumlah Driver']
-                shift_summary['Total Omset'] = shift_summary['Total Omset'].apply(format_rupiah)
-                st.dataframe(shift_summary, use_container_width=True, hide_index=True)
+                shift_table = df_filt.groupby('Shift').agg({'Net Earnings': 'sum', 'Total Completed Order': 'sum', 'Nama Driver': 'nunique'}).reset_index()
+                shift_table.columns = ['Shift', 'Total Omset', 'Total Order', 'Jumlah Driver']
+                shift_table['Total Omset'] = shift_table['Total Omset'].apply(format_rupiah)
+                st.dataframe(shift_table, use_container_width=True, hide_index=True)
 
             st.markdown("---"); st.subheader(f"🚗 {t('metrics_title')}")
             for level in ["Standard", "Premium"]:
@@ -326,7 +320,7 @@ if selected_page == 'dash':
                     st.divider()
 
 # ==========================================
-# 6. PERFORMA DRIVER (TAMBAH SHIFT & FILTER)
+# 6. PERFORMA DRIVER (DITAMBAH FILTER SHIFT)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title')); c_up, c_dl = st.columns([3, 1])
@@ -337,8 +331,7 @@ elif selected_page == 'perf':
                 try:
                     temp_perf_df = pd.read_excel(upl); required_cols_perf = list(COL_MAP.keys())
                     missing_cols_perf = [col for col in required_cols_perf if col not in temp_perf_df.columns]
-                    if missing_cols_perf: 
-                        st.error(f"❌ Upload Gagal! Kolom tidak ditemukan:\n {', '.join(missing_cols_perf)}")
+                    if missing_cols_perf: st.error(f"❌ Upload Gagal! Kolom tidak ditemukan:\n {', '.join(missing_cols_perf)}")
                     else:
                         if save_perf_data(temp_perf_df):
                             st.session_state["last_perf_file"] = upl.name
@@ -353,40 +346,33 @@ elif selected_page == 'perf':
         
         df = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         
-        # --- FILTER TAMBAHAN SHIFT ---
+        # --- SIDEBAR FILTER TAMBAHAN ---
         st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
-        shifts = st.sidebar.multiselect(t('filter_shift'), ["Pagi", "Malam", "Full Day"], default=["Pagi", "Malam", "Full Day"])
+        shift_opts = st.sidebar.multiselect(t('filter_shift'), ["Pagi", "Malam", "Full Day"], default=["Pagi", "Malam", "Full Day"])
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
         
         if levs: df = df[df['Merek'].isin(levs)]
-        if shifts: df = df[df['Shift'].isin(shifts)]
+        if shift_opts: df = df[df['Shift'].isin(shift_opts)]
         if hrs == "< 7 Jam": df = df[df['Total Online Hours'] < 7]
         elif hrs == "7 - 9 Jam": df = df[(df['Total Online Hours'] >= 7) & (df['Total Online Hours'] < 9)]
         elif hrs == ">= 9 Jam": df = df[df['Total Online Hours'] >= 9]
         
-        df_disp = df.rename(columns={'Merek': 'Level'})
-        
         st.divider(); st.subheader("📋 Summary Driver")
-        if not df_disp.empty:
-            summ = df_disp.groupby(['Nama Driver', 'Kode PT', 'Level', 'Shift']).agg({
-                'Tanggal': 'nunique', 
-                'Net Earnings': 'sum', 
-                'Total Online Hours': 'sum', 
-                'Total Completed Order': 'sum'
-            }).reset_index()
+        if not df.empty:
+            summ = df.groupby(['Nama Driver', 'Kode PT', 'Merek', 'Shift']).agg({'Tanggal': 'nunique', 'Net Earnings': 'sum', 'Total Online Hours': 'sum', 'Total Completed Order': 'sum'}).reset_index()
             summ['Rank'] = summ['Net Earnings'].rank(ascending=False).astype(int)
             summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah)
-            summ = summ.sort_values('Rank')
-            st.dataframe(summ[['Nama Driver', 'Shift', 'Level', 'Rank', 'Pendapatan Bersih', 'Total Online Hours', 'Total Completed Order']], use_container_width=True, hide_index=True)
+            summ = summ.sort_values('Rank').rename(columns={'Merek': 'Level', 'Tanggal': 'Hari Kerja'})
+            st.dataframe(summ[['Nama Driver', 'Shift', 'Level', 'Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Total Online Hours', 'Total Completed Order']], use_container_width=True, hide_index=True)
         
         st.divider(); st.subheader("📝 Detail Harian")
-        df_show_harian = df_disp.copy()
+        df_show_harian = df.copy()
         df_show_harian['Tanggal'] = pd.to_datetime(df_show_harian['Tanggal']).dt.date
         df_show_harian['id'] = range(1, len(df_show_harian) + 1)
-
+        
         def hl(row):
-            e, h, l, c = row['Net Earnings'], row['Total Online Hours'], row['Level'], ''
+            e, h, l, c = row['Net Earnings'], row['Total Online Hours'], row['Merek'], ''
             if l == 'Standard':
                 if e<300000 and h<7: c='#ffcccc'
                 elif 300000<=e<400000 and 7<=h<9: c='#fff4cc'
