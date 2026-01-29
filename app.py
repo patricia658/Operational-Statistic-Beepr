@@ -53,7 +53,7 @@ def send_email_notification(subject, body_text):
     except: return False
 
 # ==========================================
-# MAPPING DATA (STEP 1: Tambah Shift)
+# MAPPING DATA (STEP 1: Tambah kolom Shift)
 # ==========================================
 COL_MAP = {
     "Tanggal": "tanggal", 
@@ -62,7 +62,7 @@ COL_MAP = {
     "Plat No": "plat_no", 
     "Merek": "merek", 
     "Platform": "platform",
-    "Shift": "shift",  # ✅ STEP 1-A: Tambahkan ke COL_MAP
+    "Shift": "shift",  # ✅ STEP 1-A: New Column Added
     "Net Earnings": "net_earnings", 
     "Total Online Hours": "total_online_hours",
     "Total Trip Hours": "total_trip_hours", 
@@ -226,27 +226,6 @@ trans = {
         'input_car': "Input Mobil Manual", 'del_car': "Hapus Mobil Manual", 'btn_add_car': "Tambah Mobil", 'btn_del_car': "Hapus Mobil",
         'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
         'reminder_check': "Cek & Kirim Reminder", 'reminder_desc': "Cek Pajak/Asuransi yang mau habis (<30 hari) dan kirim email."
-    },
-    'CN': {
-        'nav_title': "导航", 'menu_dash': "仪表板", 'menu_perf': "司机表现", 'menu_data': "司机数据", 'menu_car': "车队数据",
-        'dash_title': "主仪表板", 'filter_date': "日期筛选", 'start_date': "开始日期", 'end_date': "结束日期",
-        'summary_all': "综合摘要", 'metrics_title': "各级别详情", 'brand': "级别", 'platform': "平台",
-        'rev': "总收入", 'orders': "总完成订单", 'cust_cancel': "客户取消", 'drv_cancel': "司机取消",
-        'avg_ord': "平均订单", 'avg_day': "平均/天", 'drivers': "司机总数",
-        'chart_comp': "收入对比图表", 'chart_plat': "收入对比图表",
-        'chart_total': "每日总收入图表", 'chart_month': "每月总收入图表",
-        'no_data': "暂无数据。请下载模板并上传 Excel。", 'no_data_range': "在此日期范围内没有数据。",
-        'perf_title': "司机表现分析", 'upload_perf': "上传表现数据 (.xlsx)", 'download_tmpl': "下载 Excel 模板",
-        'manage_data': "数据管理", 'del_date': "选择日期", 'btn_del': "删除数据",
-        'search_driver': "搜索司机", 'filter_brand': "筛选级别", 'filter_plat': "筛选平台",
-        'filter_earn': "筛选收入", 'filter_hour': "筛选在线时长",
-        'data_title': "司机数据库", 'upload_data': "上传司机数据 (.xlsx)", 'stat_total': "总司机", 'stat_active': "活跃", 'stat_resign': "离职",
-        'input_manual': "手动输入司机", 'del_manual': "手动删除司机", 'btn_add': "添加司机", 'btn_del_drv': "删除司机",
-        'car_title': "车队与保险数据库", 'upload_car': "上传车辆数据 (.xlsx)", 
-        'stat_car_total': "总车辆", 'stat_car_active': "活跃", 'stat_car_maint': "维护中", 'stat_car_broken': "损坏", 'stat_car_unused': "闲置",
-        'input_car': "手动输入车辆", 'del_car': "手动删除车辆", 'btn_add_car': "添加车辆", 'btn_del_car': "删除车辆",
-        'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
-        'reminder_check': "检查并发送提醒", 'reminder_desc': "检查即将过期的税务/保险（<30天）并发送电子邮件。"
     }
 }
 
@@ -255,7 +234,7 @@ trans = {
 # ==========================================
 start_d, end_d = None, None
 with st.sidebar:
-    lang_opt = st.radio("Language / 语言", ["ID", "CN"], horizontal=True, key="language")
+    lang_opt = st.radio("Language", ["ID"], horizontal=True, key="language")
     def t(key):
         lang = st.session_state.get('language', 'ID'); return trans[lang].get(key, key)
     st.markdown("---"); st.header(t('nav_title'))
@@ -284,7 +263,7 @@ def generate_excel_template(type_data):
 def format_rupiah(value): return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. DASHBOARD (STEP 3 & PATCH: Shift Chart & Summary)
+# 5. DASHBOARD (STEP 3: Pie Chart Shift & Omset Shift)
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -295,20 +274,34 @@ if selected_page == 'dash':
         df_filt = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         if df_filt.empty: st.error(t('no_data_range'))
         else:
-            # Recommended Safe Check
-            if "Shift" in df_filt.columns:
-                df_filt["Shift"] = df_filt["Shift"].fillna("Full Day")
-
             tot_omset = df_filt['Net Earnings'].sum(); tot_order = df_filt['Total Completed Order'].sum()
             tot_cust_canc = df_filt['Total Customer Cancelled'].sum(); tot_drv_canc = df_filt['Total Driver Cancelled'].sum()
             tot_driver = df_filt['Nama Driver'].nunique(); unique_days = df_filt['Tanggal'].nunique()
             avg_earn_per_day = tot_omset / unique_days if unique_days > 0 else 0
+            
             st.subheader(f"📊 {t('summary_all')}")
             c1, c2 = st.columns([2.5, 1])
+            
             with c1:
                 r1a, r1b, r1c = st.columns(3); r1a.metric(t('rev'), format_rupiah(tot_omset)); r1b.metric(t('orders'), f"{tot_order}"); r1c.metric(t('drivers'), f"{tot_driver}")
                 r2a, r2b, r2c = st.columns(3); r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day)); r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0)); r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
-            
+                
+                # ✅ PATCH MINIMAL: OMSET PER SHIFT (DITARUH DI BAWAH RINGKASAN GABUNGAN)
+                if "Shift" in df_filt.columns:
+                    # Supaya kalau kosong tetap masuk Full Day
+                    df_filt["Shift"] = df_filt["Shift"].fillna("Full Day")
+                    
+                    shift_summary = df_filt.groupby("Shift")["Net Earnings"].sum()
+                    pagi = shift_summary.get("Pagi", 0)
+                    malam = shift_summary.get("Malam", 0)
+                    full_day = shift_summary.get("Full Day", 0)
+                    
+                    st.markdown("### 💰 Omset per Shift")
+                    s1, s2, s3 = st.columns(3)
+                    s1.metric("Pagi", format_rupiah(pagi))
+                    s2.metric("Malam", format_rupiah(malam))
+                    s3.metric("Full Day", format_rupiah(full_day))
+
             with c2:
                 # Chart 1: Standard vs Premium
                 pie_data = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
@@ -322,21 +315,8 @@ if selected_page == 'dash':
                     pie_shift = df_filt.groupby("Shift")["Net Earnings"].sum().reset_index()
                     if not pie_shift.empty:
                         fig2 = px.pie(pie_shift, values="Net Earnings", names="Shift", title="Pagi vs Malam vs Full Day", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                        fig2.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False)
-                        fig2.update_traces(textposition="inside", textinfo="percent+label")
+                        fig2.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False); fig2.update_traces(textposition="inside", textinfo="percent+label")
                         st.plotly_chart(fig2, use_container_width=True)
-
-                        # ✅ PATCH: OMSET PER SHIFT SUMMARY
-                        shift_summary = df_filt.groupby("Shift")["Net Earnings"].sum()
-                        pagi = shift_summary.get("Pagi", 0)
-                        malam = shift_summary.get("Malam", 0)
-                        full_day = shift_summary.get("Full Day", 0)
-
-                        st.markdown("### 💰 Omset per Shift")
-                        s1, s2, s3 = st.columns(3)
-                        s1.metric("Pagi", format_rupiah(pagi))
-                        s2.metric("Malam", format_rupiah(malam))
-                        s3.metric("Full Day", format_rupiah(full_day))
 
             st.markdown("---"); st.subheader(f"🚗 {t('metrics_title')}")
             for level in ["Standard", "Premium"]:
@@ -345,6 +325,7 @@ if selected_page == 'dash':
                     st.markdown(f"**Level: {level}**"); lo = l_df['Net Earnings'].sum(); lord = l_df['Total Completed Order'].sum(); lday = l_df['Tanggal'].nunique()
                     ca, cb, cc, cd = st.columns(4); ca.metric(t('rev'), format_rupiah(lo)); cb.metric(t('orders'), f"{lord}"); cc.metric(t('avg_ord'), format_rupiah(lo/lord if lord>0 else 0)); cd.metric(t('avg_day'), format_rupiah(lo/lday if lday>0 else 0))
                     ce, cf, cg, ch = st.columns(4); ce.metric(t('cust_cancel'), f"{l_df['Total Customer Cancelled'].sum()}"); cf.metric(t('drv_cancel'), f"{l_df['Total Driver Cancelled'].sum()}"); cg.metric(t('drivers'), f"{l_df['Nama Driver'].nunique()}"); st.divider()
+            
             df_filt['DateStr'] = df_filt['Tanggal'].dt.strftime('%Y-%m-%d'); daily = df_filt.groupby(['DateStr', 'Merek', 'Platform'])['Net Earnings'].sum().reset_index()
             g1, g2 = st.columns(2)
             with g1:
@@ -403,7 +384,7 @@ elif selected_page == 'perf':
         if "Premium" in levs: earns.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
         sel_earn = st.sidebar.selectbox(t('filter_earn'), list(dict.fromkeys(earns)))
         
-        # Apply Logic Filter Shift
+        # ✅ Apply Filter Shift
         if "Shift" in df.columns:
             df = df[df["Shift"].isin(shift_opt)]
             
