@@ -52,11 +52,13 @@ def send_email_notification(subject, body_text):
         return True
     except: return False
 
-# --- MAPPING DATA ---
+# ==========================================
+# MAPPING DATA (STEP 1: Tambah Shift)
+# ==========================================
 COL_MAP = {
     "Tanggal": "tanggal", "Nama Driver": "nama_driver", "Kode PT": "kode_pt",
     "Plat No": "plat_no", "Merek": "merek", "Platform": "platform",
-    "Shift": "shift", # ✅ ADDED SHIFT
+    "Shift": "shift",  # ✅ ADDED PER STEP 1-A
     "Net Earnings": "net_earnings", "Total Online Hours": "total_online_hours",
     "Total Trip Hours": "total_trip_hours", "Total Completed Order": "total_completed_order",
     "Total Customer Cancelled": "total_customer_cancelled", "Total Driver Cancelled": "total_driver_cancelled"
@@ -103,6 +105,7 @@ def save_perf_data(df):
         for col in num_cols:
             if col in df_db.columns: df_db[col] = df_db[col].fillna(0)
         df_db['tanggal'] = pd.to_datetime(df_db['tanggal']).dt.strftime('%Y-%m-%d')
+        # Upsert with platform and shift constraints if necessary
         supabase.table("perf_data").upsert(df_db.to_dict('records'), on_conflict="tanggal,nama_driver,platform").execute()
         return True
     except Exception as e:
@@ -217,6 +220,27 @@ trans = {
         'input_car': "Input Mobil Manual", 'del_car': "Hapus Mobil Manual", 'btn_add_car': "Tambah Mobil", 'btn_del_car': "Hapus Mobil",
         'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
         'reminder_check': "Cek & Kirim Reminder", 'reminder_desc': "Cek Pajak/Asuransi yang mau habis (<30 hari) dan kirim email."
+    },
+    'CN': {
+        'nav_title': "导航", 'menu_dash': "仪表板", 'menu_perf': "司机表现", 'menu_data': "司机数据", 'menu_car': "车队数据",
+        'dash_title': "主仪表板", 'filter_date': "日期筛选", 'start_date': "开始日期", 'end_date': "结束日期",
+        'summary_all': "综合摘要", 'metrics_title': "各级别详情", 'brand': "级别", 'platform': "平台",
+        'rev': "总收入", 'orders': "总完成订单", 'cust_cancel': "客户取消", 'drv_cancel': "司机取消",
+        'avg_ord': "平均订单", 'avg_day': "平均/天", 'drivers': "司机总数",
+        'chart_comp': "收入对比图表", 'chart_plat': "收入对比图表",
+        'chart_total': "每日总收入图表", 'chart_month': "每月总收入图表",
+        'no_data': "暂无数据。请下载模板并上传 Excel。", 'no_data_range': "在此日期范围内没有数据。",
+        'perf_title': "司机表现分析", 'upload_perf': "上传表现数据 (.xlsx)", 'download_tmpl': "下载 Excel 模板",
+        'manage_data': "数据管理", 'del_date': "选择日期", 'btn_del': "删除数据",
+        'search_driver': "搜索司机", 'filter_brand': "筛选级别", 'filter_plat': "筛选平台",
+        'filter_earn': "筛选收入", 'filter_hour': "筛选在线时长",
+        'data_title': "司机数据库", 'upload_data': "上传司机数据 (.xlsx)", 'stat_total': "总司机", 'stat_active': "活跃", 'stat_resign': "离职",
+        'input_manual': "手动输入司机", 'del_manual': "手动删除司机", 'btn_add': "添加司机", 'btn_del_drv': "删除司机",
+        'car_title': "车队与保险数据库", 'upload_car': "上传车辆数据 (.xlsx)", 
+        'stat_car_total': "总车辆", 'stat_car_active': "活跃", 'stat_car_maint': "维护中", 'stat_car_broken': "损坏", 'stat_car_unused': "闲置",
+        'input_car': "手动输入车辆", 'del_car': "手动删除车辆", 'btn_add_car': "添加车辆", 'btn_del_car': "删除车辆",
+        'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
+        'reminder_check': "检查并发送提醒", 'reminder_desc': "检查即将过期的税务/保险（<30天）并发送电子邮件。"
     }
 }
 
@@ -225,7 +249,7 @@ trans = {
 # ==========================================
 start_d, end_d = None, None
 with st.sidebar:
-    lang_opt = st.radio("Language", ["ID"], horizontal=True, key="language")
+    lang_opt = st.radio("Language / 语言", ["ID", "CN"], horizontal=True, key="language")
     def t(key):
         lang = st.session_state.get('language', 'ID'); return trans[lang].get(key, key)
     st.markdown("---"); st.header(t('nav_title'))
@@ -233,10 +257,13 @@ with st.sidebar:
     selected_page = st.radio("Menu", list(nav_options.keys()), format_func=lambda x: nav_options[x])
     st.markdown("---"); st.subheader(f"🗓️ {t('filter_date')}")
     if not st.session_state['perf_data'].empty:
-        df_temp = st.session_state['perf_data']; df_temp['Tanggal'] = pd.to_datetime(df_temp['Tanggal'])
-        min_date = df_temp['Tanggal'].min().date(); max_date = df_temp['Tanggal'].max().date()
+        df_temp = st.session_state['perf_data'].copy()
+        df_temp['Tanggal'] = pd.to_datetime(df_temp['Tanggal'])
+        min_date = df_temp['Tanggal'].min().date()
+        max_date = df_temp['Tanggal'].max().date()
     else: min_date = max_date = pd.to_datetime('today').date()
-    start_d = st.date_input(t('start_date'), min_date); end_d = st.date_input(t('end_date'), max_date)
+    start_d = st.date_input(t('start_date'), min_date)
+    end_d = st.date_input(t('end_date'), max_date)
 
 def generate_excel_template(type_data):
     buffer = io.BytesIO()
@@ -251,7 +278,7 @@ def generate_excel_template(type_data):
 def format_rupiah(value): return f"Rp {value:,.0f}"
 
 # ==========================================
-# 5. DASHBOARD
+# 5. DASHBOARD (STEP 3: Tambah Pie Chart Shift)
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -272,19 +299,19 @@ if selected_page == 'dash':
                 r1a, r1b, r1c = st.columns(3); r1a.metric(t('rev'), format_rupiah(tot_omset)); r1b.metric(t('orders'), f"{tot_order}"); r1c.metric(t('drivers'), f"{tot_driver}")
                 r2a, r2b, r2c = st.columns(3); r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day)); r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0)); r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
             with c2:
-                # PIE 1: Level
+                # Chart 1: Standard vs Premium
                 pie_data = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
                 if not pie_data.empty:
                     fig = px.pie(pie_data, values='Net Earnings', names='Merek', title="Standard vs Premium", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False); fig.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig, use_container_width=True)
                 
-                # ✅ PIE 2: SHIFT
-                if 'Shift' in df_filt.columns:
-                    pie_shift = df_filt.groupby('Shift')['Net Earnings'].sum().reset_index()
+                # ✅ CHART 2: PIE CHART SHIFT (PER STEP 3)
+                if "Shift" in df_filt.columns:
+                    pie_shift = df_filt.groupby("Shift")["Net Earnings"].sum().reset_index()
                     if not pie_shift.empty:
-                        fig2 = px.pie(pie_shift, values='Net Earnings', names='Shift', title="Shift Breakdown", hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
-                        fig2.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False); fig2.update_traces(textposition='inside', textinfo='percent+label')
+                        fig2 = px.pie(pie_shift, values="Net Earnings", names="Shift", title="Pagi vs Malam vs Full Day", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        fig2.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False); fig2.update_traces(textposition="inside", textinfo="percent+label")
                         st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---"); st.subheader(f"🚗 {t('metrics_title')}")
@@ -302,9 +329,13 @@ if selected_page == 'dash':
             with g2:
                 st.subheader("Premium (Gojek vs Grab)"); dp = daily[daily['Merek']=='Premium']
                 if not dp.empty: f2 = px.line(dp, x='DateStr', y='Net Earnings', color='Platform', markers=True); f2.update_xaxes(tickformat="%d-%b", dtick="D1"); st.plotly_chart(f2, use_container_width=True)
+            st.subheader(t('chart_total')); dtot = df_filt.groupby('DateStr')['Net Earnings'].sum().reset_index()
+            f3 = px.line(dtot, x='DateStr', y='Net Earnings', markers=True); f3.update_xaxes(tickformat="%d-%b", dtick="D1"); st.plotly_chart(f3, use_container_width=True)
+            st.subheader(t('chart_month')); df_filt['M'] = df_filt['Tanggal'].dt.to_period('M'); dm = df_filt.groupby('M')['Net Earnings'].sum().reset_index(); dm['L'] = dm['M'].dt.strftime("%b'%y")
+            f4 = px.line(dm, x='L', y='Net Earnings', markers=True); st.plotly_chart(f4, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER
+# 6. PERFORMA DRIVER (STEP 2: Filter Shift)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title')); c_up, c_dl = st.columns([3, 1])
@@ -339,9 +370,8 @@ elif selected_page == 'perf':
         st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
         
-        # ✅ FILTER SHIFT
-        shift_opts = ["Pagi", "Malam", "Full Day"]
-        sel_shifts = st.sidebar.multiselect("Filter Shift", shift_opts, default=shift_opts)
+        # ✅ FILTER SHIFT (PER STEP 2)
+        shift_opt = st.sidebar.multiselect("Filter Shift", ["Pagi", "Malam", "Full Day"], default=["Pagi", "Malam", "Full Day"])
         
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
         earns = ["Semua"]
@@ -349,10 +379,11 @@ elif selected_page == 'perf':
         if "Premium" in levs: earns.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
         sel_earn = st.sidebar.selectbox(t('filter_earn'), list(dict.fromkeys(earns)))
         
-        # Apply Filters
+        # Apply Logic Filter Shift
+        if "Shift" in df.columns:
+            df = df[df["Shift"].isin(shift_opt)]
+            
         if levs: df = df[df['Merek'].isin(levs)]
-        if 'Shift' in df.columns: df = df[df['Shift'].isin(sel_shifts)] # ✅ APPLY SHIFT FILTER
-        
         if hrs == "< 7 Jam": df = df[df['Total Online Hours'] < 7]
         elif hrs == "7 - 9 Jam": df = df[(df['Total Online Hours'] >= 7) & (df['Total Online Hours'] < 9)]
         elif hrs == ">= 9 Jam": df = df[df['Total Online Hours'] >= 9]
@@ -389,23 +420,13 @@ elif selected_page == 'perf':
         
         st.divider(); st.subheader("📋 Summary Driver")
         if not df_disp.empty:
-            agg_cols = {'Tanggal': 'nunique', 'Net Earnings': 'sum', 'Total Online Hours': 'sum', 'Total Trip Hours': 'sum', 'Total Completed Order': 'sum', 'Total Customer Cancelled': 'sum', 'Total Driver Cancelled': 'sum'}
-            group_keys = ['Nama Driver', 'Kode PT', 'Level']
-            if 'Shift' in df_disp.columns: group_keys.append('Shift') # ✅ AGGREGATE BY SHIFT IF EXISTS
-            
-            summ = df_disp.groupby(group_keys).agg(agg_cols).reset_index()
-            summ['Rank'] = summ['Net Earnings'].rank(ascending=False).astype(int)
-            summ['Avg'] = summ['Net Earnings'] / summ['Total Completed Order'].replace(0,1)
-            summ = summ.sort_values('Rank')
-            summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah)
-            summ['Earning Rata2'] = summ['Avg'].apply(format_rupiah)
-            summ.reset_index(drop=True, inplace=True); summ.index += 1
-            
-            show_cols = ['Nama Driver', 'Kode PT', 'Level']
-            if 'Shift' in summ.columns: show_cols.append('Shift')
-            show_cols += ['Rank', 'Pendapatan Bersih', 'Total Completed Order', 'Earning Rata2']
-            st.dataframe(summ[show_cols], use_container_width=True)
-
+            if 'Kode PT' not in df_disp.columns: df_disp['Kode PT'] = '-'
+            summ = df_disp.groupby(['Nama Driver', 'Kode PT', 'Level']).agg({'Tanggal': 'nunique', 'Net Earnings': 'sum', 'Total Online Hours': 'sum', 'Total Trip Hours': 'sum', 'Total Completed Order': 'sum', 'Total Customer Cancelled': 'sum', 'Total Driver Cancelled': 'sum'}).reset_index()
+            summ['Rank'] = summ['Net Earnings'].rank(ascending=False).astype(int); summ['Avg'] = summ['Net Earnings'] / summ['Total Completed Order'].replace(0,1); summ = summ.sort_values('Rank')
+            summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah); summ['Earning Rata2'] = summ['Avg'].apply(format_rupiah); summ.reset_index(drop=True, inplace=True); summ.index += 1
+            show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
+            st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
+        
         st.divider(); st.subheader("📝 Detail Harian")
         df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
         df_show_harian = df_disp.copy()
@@ -426,7 +447,7 @@ elif selected_page == 'perf':
         st.dataframe(df_show_harian.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
 
 # ==========================================
-# 7. DATA DRIVER (Sama Seperti Sebelumnya)
+# 7. DATA DRIVER
 # ==========================================
 elif selected_page == 'data':
     st.title(t('data_title')); c_up, c_dl = st.columns([3, 1])
@@ -457,7 +478,7 @@ elif selected_page == 'data':
     if not df_d.empty: df_show = df_d.reset_index(drop=True); df_show.index += 1; st.dataframe(df_show, use_container_width=True)
 
 # ==========================================
-# 8. DATA MOBIL (Sama Seperti Sebelumnya)
+# 8. DATA MOBIL
 # ==========================================
 elif selected_page == 'car':
     st.title(t('car_title'))
