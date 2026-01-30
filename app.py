@@ -294,7 +294,7 @@ def generate_excel_template(type_data):
     return buffer
 
 # ==========================================
-# 5. DASHBOARD (STEP 3 & PATCH 4: Shift Chart & Summary)
+# 5. DASHBOARD
 # ==========================================
 if selected_page == 'dash':
     st.title(t('dash_title'))
@@ -317,11 +317,8 @@ if selected_page == 'dash':
                 r1a, r1b, r1c = st.columns(3); r1a.metric(t('rev'), format_rupiah(tot_omset)); r1b.metric(t('orders'), f"{tot_order}"); r1c.metric(t('drivers'), f"{tot_driver}")
                 r2a, r2b, r2c = st.columns(3); r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day)); r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0)); r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
                 
-                # ✅ PATCH 4 & PATCH MINIMAL: OMSET PER SHIFT
                 if "Shift" in df_filt.columns:
-                    # Supaya aman kalau ada data lama kosong (Sesuai foto Safe Data)
                     df_filt["Shift"] = df_filt["Shift"].apply(normalize_shift)
-                    
                     shift_summary = df_filt.groupby("Shift")["Net Earnings"].sum()
                     pagi = shift_summary.get("Pagi", 0)
                     malam = shift_summary.get("Malam", 0)
@@ -334,14 +331,12 @@ if selected_page == 'dash':
                     s3.metric("Full day", format_rupiah(full_day))
 
             with c2:
-                # Chart 1: Standard vs Premium
                 pie_data = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
                 if not pie_data.empty:
                     fig = px.pie(pie_data, values='Net Earnings', names='Merek', title="Standard vs Premium", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=220, showlegend=False); fig.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig, use_container_width=True)
                 
-                # ✅ STEP 3: PIE CHART SHIFT
                 if "Shift" in df_filt.columns:
                     pie_shift = df_filt.groupby("Shift")["Net Earnings"].sum().reset_index()
                     if not pie_shift.empty:
@@ -371,7 +366,7 @@ if selected_page == 'dash':
             f4 = px.line(dm, x='L', y='Net Earnings', markers=True); st.plotly_chart(f4, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER (STEP 2 & PATCH 5: Filter Shift)
+# 6. PERFORMA DRIVER (DENGAN PATCH FOTO)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title')); c_up, c_dl = st.columns([3, 1])
@@ -405,17 +400,13 @@ elif selected_page == 'perf':
         
         st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
-        
-        # ✅ STEP 2 & PATCH 5: FILTER SHIFT
         shift_opt = st.sidebar.multiselect("Filter Shift", ["Pagi", "Malam", "Full day"], default=["Pagi", "Malam", "Full day"])
-        
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
         earns = ["Semua"]
         if "Standard" in levs: earns.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
         if "Premium" in levs: earns.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
         sel_earn = st.sidebar.selectbox(t('filter_earn'), list(dict.fromkeys(earns)))
         
-        # ✅ Apply Normalize Shift Before Filtering (Patch 5)
         if "Shift" in df.columns:
             df["Shift"] = df["Shift"].apply(normalize_shift)
             df = df[df["Shift"].isin(shift_opt)]
@@ -464,9 +455,26 @@ elif selected_page == 'perf':
             show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
             st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
         
+        # --- BAGIAN DETAIL HARIAN (SESUAI PATCH FOTO) ---
         st.divider(); st.subheader("📝 Detail Harian")
         df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
         df_show_harian = df_disp.copy()
+        
+        # ✅ Tambahkan kolom Avg / Order (Sesuai Foto 1)
+        df_show_harian["Avg / Order"] = (
+            df_show_harian["Net Earnings"] / 
+            df_show_harian["Total Completed Order"].replace(0, 1)
+        )
+        
+        # ✅ Susun ulang kolom supaya Avg / Order di sebelah Net Earnings (Sesuai Foto 2)
+        cols = list(df_show_harian.columns)
+        if "Net Earnings" in cols and "Avg / Order" in cols:
+            net_idx = cols.index("Net Earnings")
+            cols.remove("Avg / Order")
+            cols.insert(net_idx + 1, "Avg / Order")
+            df_show_harian = df_show_harian[cols]
+        
+        # ✅ ID Column (Sesuai Foto 1)
         df_show_harian['id'] = range(1, len(df_show_harian) + 1)
 
         def hl(row):
@@ -481,7 +489,16 @@ elif selected_page == 'perf':
                 elif e>=600000 and h>=9: c='#ccffcc'
             return [f'background-color: {c}']*len(row) if c else ['']*len(row)
 
-        st.dataframe(df_show_harian.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f")})
+        # ✅ Update Column Config (Sesuai Foto 2)
+        st.dataframe(
+            df_show_harian.style.apply(hl, axis=1), 
+            hide_index=True, 
+            use_container_width=True, 
+            column_config={
+                "Net Earnings": st.column_config.NumberColumn(format="Rp %.0f"),
+                "Avg / Order": st.column_config.NumberColumn(format="Rp %.0f")
+            }
+        )
 
 # ==========================================
 # 7. DATA DRIVER
