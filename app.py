@@ -236,7 +236,7 @@ if 'driver_data' not in st.session_state: st.session_state['driver_data'] = load
 if 'car_data' not in st.session_state: st.session_state['car_data'] = load_car_data()
 
 # ==========================================
-# 3. KAMUS BAHASA
+# 3. KAMUS BAHASA (UPDATE: DENGAN MANDARIN)
 # ==========================================
 trans = {
     'ID': {
@@ -258,7 +258,38 @@ trans = {
         'stat_car_total': "Total Mobil", 'stat_car_active': "Mobil Aktif", 'stat_car_maint': "Maintenance", 'stat_car_broken': "Rusak", 'stat_car_unused': "Tidak Dipakai",
         'input_car': "Input Mobil Manual", 'del_car': "Hapus Mobil Manual", 'btn_add_car': "Tambah Mobil", 'btn_del_car': "Hapus Mobil",
         'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
-        'reminder_check': "Cek & Kirim Reminder", 'reminder_desc': "Cek Pajak/Asuransi yang mau habis (<30 hari) dan kirim email."
+        'reminder_check': "Cek & Kirim Reminder", 'reminder_desc': "Cek Pajak/Asuransi yang mau habis (<30 hari) dan kirim email.",
+        # --- KEY TAMBAHAN UNTUK PATCH BILINGUAL ---
+        'filter_title': "Filter", 'shift_filter': "Filter Shift", 'shift_income': "Omset per Shift",
+        'target_analysis': "Analisis Target", 'standard': "STANDARD", 'income': "Pendapatan", 'online_hours': "Jam Online",
+        'premium': "PREMIUM", 'summary_driver': "Summary Driver", 'detail_daily': "Detail Harian",
+        'deleted': "Deleted", 'success_upload': "Upload & Update Berhasil!"
+    },
+    '中文': {
+        'nav_title': "导航", 'menu_dash': "仪表盘", 'menu_perf': "司机表现", 'menu_data': "司机数据", 'menu_car': "车辆管理",
+        'dash_title': "主仪表盘", 'filter_date': "日期筛选", 'start_date': "开始日期", 'end_date': "结束日期",
+        'summary_all': "综合汇总 (全部车队)", 'metrics_title': "等级详情 (Standard & Premium)", 'brand': "等级", 'platform': "平台",
+        'rev': "总收入", 'orders': "完成订单总数", 'cust_cancel': "乘客取消", 'drv_cancel': "司机取消",
+        'avg_ord': "每单平均收入", 'avg_day': "每日平均收入", 'drivers': "司机数量",
+        'chart_comp': "收入对比图表", 'chart_plat': "平台收入图表",
+        'chart_total': "每日总收入图表", 'chart_month': "每月总收入图表",
+        'no_data': "暂无数据，请上传 Excel 文件。", 'no_data_range': "该日期范围内没有数据。",
+        'perf_title': "司机表现分析", 'upload_perf': "上传表现数据 (.xlsx)", 'download_tmpl': "下载 Excel 模板",
+        'manage_data': "数据管理 (按日期删除)", 'del_date': "选择日期", 'btn_del': "永久删除数据",
+        'search_driver': "搜索司机 (姓名)", 'filter_brand': "等级筛选", 'filter_plat': "平台筛选",
+        'filter_earn': "收入筛选", 'filter_hour': "在线时长筛选",
+        'data_title': "司机数据库", 'upload_data': "上传司机数据 (.xlsx)", 'stat_total': "司机总数", 'stat_active': "在职", 'stat_resign': "离职",
+        'input_manual': "手动录入司机", 'del_manual': "手动删除司机", 'btn_add': "添加司机", 'btn_del_drv': "删除司机",
+        'car_title': "车辆数据库与保险管理", 'upload_car': "上传车辆数据 (.xlsx)",
+        'stat_car_total': "车辆总数", 'stat_car_active': "运营中", 'stat_car_maint': "维护中", 'stat_car_broken': "故障", 'stat_car_unused': "闲置",
+        'input_car': "手动录入车辆", 'del_car': "手动删除车辆", 'btn_add_car': "添加车辆", 'btn_del_car': "删除车辆",
+        'car_status_opt': ["运营中", "维护中", "故障", "闲置"], 'driver_status_opt': ["在职", "离职"],
+        'reminder_check': "检查并发送提醒", 'reminder_desc': "检查即将到期的税务/保险 (30天内) 并发送邮件提醒。",
+        # --- KEY TAMBAHAN UNTUK PATCH BILINGUAL ---
+        'filter_title': "筛选", 'shift_filter': "班次筛选", 'shift_income': "按班次收入",
+        'target_analysis': "目标分析", 'standard': "标准车", 'income': "收入", 'online_hours': "在线时长",
+        'premium': "高端车", 'summary_driver': "司机汇总", 'detail_daily': "每日明细",
+        'deleted': "已删除", 'success_upload': "上传更新成功！"
     }
 }
 
@@ -267,7 +298,8 @@ trans = {
 # ==========================================
 start_d, end_d = None, None
 with st.sidebar:
-    lang_opt = st.radio("Language", ["ID"], horizontal=True, key="language")
+    # ✅ UPDATE: Pilihan Bahasa jadi 2
+    lang_opt = st.radio("Language", ["ID", "中文"], horizontal=True, key="language")
     def t(key):
         lang = st.session_state.get('language', 'ID'); return trans[lang].get(key, key)
     st.markdown("---"); st.header(t('nav_title'))
@@ -324,7 +356,8 @@ if selected_page == 'dash':
                     malam = shift_summary.get("Malam", 0)
                     full_day = shift_summary.get("Full day", 0)
                     
-                    st.markdown("### 💰 Omset per Shift")
+                    # ✅ UPDATE: Header Bilingual
+                    st.markdown(f"### 💰 {t('shift_income')}")
                     s1, s2, s3 = st.columns(3)
                     s1.metric("Pagi", format_rupiah(pagi))
                     s2.metric("Malam", format_rupiah(malam))
@@ -383,7 +416,8 @@ elif selected_page == 'perf':
                         if save_perf_data(temp_perf_df):
                             st.session_state["last_perf_file"] = upl.name
                             st.session_state['perf_data'] = load_perf_data()
-                            st.success("✅ Upload & Update Berhasil!"); st.rerun()
+                            # ✅ UPDATE: Pesan Sukses Bilingual
+                            st.success(f"✅ {t('success_upload')}"); st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
     with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template_performa.xlsx")
     
@@ -394,13 +428,16 @@ elif selected_page == 'perf':
             if cd2.button(t('btn_del')):
                 if delete_perf_data_by_date(ddt): 
                     st.session_state['perf_data'] = load_perf_data()
-                    st.success("Deleted"); st.rerun()
+                    # ✅ UPDATE: Pesan Hapus Bilingual
+                    st.success(t('deleted')); st.rerun()
         
         df = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         
-        st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
+        # ✅ UPDATE: Filter Title Bilingual
+        st.sidebar.markdown("---"); st.sidebar.subheader(f"🔍 {t('filter_title')}")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
-        shift_opt = st.sidebar.multiselect("Filter Shift", ["Pagi", "Malam", "Full day"], default=["Pagi", "Malam", "Full day"])
+        # ✅ UPDATE: Shift Filter Bilingual
+        shift_opt = st.sidebar.multiselect(t('shift_filter'), ["Pagi", "Malam", "Full day"], default=["Pagi", "Malam", "Full day"])
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
         earns = ["Semua"]
         if "Standard" in levs: earns.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
@@ -425,7 +462,8 @@ elif selected_page == 'perf':
             elif "Premium >= 600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 600000)]
         
         df_disp = df.rename(columns={'Merek': 'Level'})
-        st.divider(); st.subheader("📊 Analisis Target")
+        # ✅ UPDATE: Header Analisis Target Bilingual
+        st.divider(); st.subheader(f"📊 {t('target_analysis')}")
         def get_stats(sub, bkts, name):
             res = []; tot = sub['Net Earnings'].sum()
             for k, v in bkts.items():
@@ -436,17 +474,20 @@ elif selected_page == 'perf':
         
         ds = df[df['Merek']=='Standard']; dp = df[df['Merek']=='Premium']; c1, c2 = st.columns(2)
         with c1:
-            st.markdown("### STANDARD")
+            # ✅ UPDATE: Header Standard & Teks Bilingual
+            st.markdown(f"### {t('standard')}")
             if not ds.empty:
-                st.write("Pendapatan"); st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True)
-                st.write("Jam Online"); st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
+                st.write(t('income')); st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True)
+                st.write(t('online_hours')); st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
         with c2:
-            st.markdown("### PREMIUM")
+            # ✅ UPDATE: Header Premium & Teks Bilingual
+            st.markdown(f"### {t('premium')}")
             if not dp.empty:
-                st.write("Pendapatan"); st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True)
-                st.write("Jam Online"); st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
+                st.write(t('income')); st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True)
+                st.write(t('online_hours')); st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
         
-        st.divider(); st.subheader("📋 Summary Driver")
+        # ✅ UPDATE: Summary Driver Bilingual
+        st.divider(); st.subheader(f"📋 {t('summary_driver')}")
         if not df_disp.empty:
             if 'Kode PT' not in df_disp.columns: df_disp['Kode PT'] = '-'
             summ = df_disp.groupby(['Nama Driver', 'Kode PT', 'Level']).agg({'Tanggal': 'nunique', 'Net Earnings': 'sum', 'Total Online Hours': 'sum', 'Total Trip Hours': 'sum', 'Total Completed Order': 'sum', 'Total Customer Cancelled': 'sum', 'Total Driver Cancelled': 'sum'}).reset_index()
@@ -455,8 +496,8 @@ elif selected_page == 'perf':
             show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
             st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
         
-        # --- BAGIAN DETAIL HARIAN (SESUAI PATCH FOTO) ---
-        st.divider(); st.subheader("📝 Detail Harian")
+        # ✅ UPDATE: Detail Harian Bilingual
+        st.divider(); st.subheader(f"📝 {t('detail_daily')}")
         df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
         df_show_harian = df_disp.copy()
         
