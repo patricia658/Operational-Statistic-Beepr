@@ -236,7 +236,7 @@ if 'driver_data' not in st.session_state: st.session_state['driver_data'] = load
 if 'car_data' not in st.session_state: st.session_state['car_data'] = load_car_data()
 
 # ==========================================
-# 3. KAMUS BAHASA (BILINGUAL PATCH)
+# 3. KAMUS BAHASA
 # ==========================================
 trans = {
     'ID': {
@@ -250,27 +250,15 @@ trans = {
         'no_data': "Belum ada data. Silakan upload Excel.", 'no_data_range': "Tidak ada data pada rentang tanggal ini.",
         'perf_title': "Analisa Performa Driver", 'upload_perf': "Upload Data Performa (.xlsx)", 'download_tmpl': "Download Template Excel",
         'manage_data': "Kelola Data (Hapus per Tanggal)", 'del_date': "Pilih Tanggal", 'btn_del': "Hapus Data Permanen",
-        'filter_title': "Filter", 'shift_filter': "Filter Shift", 'target_analysis': "Analisis Target", 'summary_driver': "Summary Driver", 'detail_daily': "Detail Harian",
-        'income': "Pendapatan", 'online_hours': "Jam Online", 'standard': "STANDARD", 'premium': "PREMIUM",
-        'deleted': "Deleted", 'success_upload': "Upload & Update Berhasil!", 'shift_income': "Omset per Shift",
+        'search_driver': "Cari Driver (Nama)", 'filter_brand': "Filter Level", 'filter_plat': "Filter Platform",
+        'filter_earn': "Filter Pendapatan", 'filter_hour': "Filter Jam Online",
+        'data_title': "Database Driver", 'upload_data': "Upload Data Driver (.xlsx)", 'stat_total': "Total Driver", 'stat_active': "Active", 'stat_resign': "Resigned",
+        'input_manual': "Input Driver Manual", 'del_manual': "Hapus Driver Manual", 'btn_add': "Tambah Driver", 'btn_del_drv': "Hapus Driver",
         'car_title': "Database Armada & Asuransi", 'upload_car': "Upload Data Mobil (.xlsx)", 
+        'stat_car_total': "Total Mobil", 'stat_car_active': "Mobil Aktif", 'stat_car_maint': "Maintenance", 'stat_car_broken': "Rusak", 'stat_car_unused': "Tidak Dipakai",
+        'input_car': "Input Mobil Manual", 'del_car': "Hapus Mobil Manual", 'btn_add_car': "Tambah Mobil", 'btn_del_car': "Hapus Mobil",
+        'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
         'reminder_check': "Cek & Kirim Reminder", 'reminder_desc': "Cek Pajak/Asuransi yang mau habis (<30 hari) dan kirim email."
-    },
-    '中文': {
-        'nav_title': "导航", 'menu_dash': "仪表盘", 'menu_perf': "司机表现", 'menu_data': "司机数据", 'menu_car': "车辆管理",
-        'dash_title': "主仪表盘", 'filter_date': "日期筛选", 'start_date': "开始日期", 'end_date': "结束日期",
-        'summary_all': "综合汇总 (全部车队)", 'metrics_title': "等级详情 (Standard & Premium)", 'brand': "等级", 'platform': "平台",
-        'rev': "总收入", 'orders': "完成订单总数", 'drivers': "司机数量",
-        'avg_ord': "每单平均收入", 'avg_day': "每日平均收入", 'cust_cancel': "乘客取消", 'drv_cancel': "司机取消",
-        'chart_total': "每日总收入图表", 'chart_month': "每月总收入图表",
-        'no_data': "暂无数据，请上传 Excel 文件。", 'no_data_range': "该日期范围内没有数据。",
-        'perf_title': "司机表现分析", 'upload_perf': "上传表现数据 (.xlsx)", 'download_tmpl': "下载 Excel 模板",
-        'manage_data': "数据管理 (按日期删除)", 'del_date': "选择日期", 'btn_del': "永久删除数据",
-        'filter_title': "筛选", 'shift_filter': "班次筛选", 'target_analysis': "目标分析", 'summary_driver': "司机汇总", 'detail_daily': "每日明细",
-        'income': "收入", 'online_hours': "在线时长", 'standard': "标准车", 'premium': "高端车",
-        'deleted': "已删除", 'success_upload': "上传更新成功！", 'shift_income': "按班次收入",
-        'car_title': "车辆数据库与保险管理", 'upload_car': "上传车辆数据 (.xlsx)",
-        'reminder_check': "检查并发送提醒", 'reminder_desc': "检查即将到期的税务/保险 (30天内) 并发送邮件提醒。"
     }
 }
 
@@ -279,16 +267,13 @@ trans = {
 # ==========================================
 start_d, end_d = None, None
 with st.sidebar:
-    # ✅ Sidebar Language (Sesuai Foto 1)
-    lang_opt = st.radio("Language", ["ID", "中文"], horizontal=True, key="language")
+    lang_opt = st.radio("Language", ["ID"], horizontal=True, key="language")
     def t(key):
         lang = st.session_state.get('language', 'ID'); return trans[lang].get(key, key)
     st.markdown("---"); st.header(t('nav_title'))
     nav_options = {'dash': t('menu_dash'), 'perf': t('menu_perf'), 'data': t('menu_data'), 'car': t('menu_car')}
     selected_page = st.radio("Menu", list(nav_options.keys()), format_func=lambda x: nav_options[x])
-    
-    st.markdown("---"); st.subheader(f"🔍 {t('filter_title')}")
-    st.subheader(f"🗓️ {t('filter_date')}")
+    st.markdown("---"); st.subheader(f"🗓️ {t('filter_date')}")
     if not st.session_state['perf_data'].empty:
         df_temp = st.session_state['perf_data'].copy()
         df_temp['Tanggal'] = pd.to_datetime(df_temp['Tanggal'])
@@ -298,7 +283,6 @@ with st.sidebar:
     start_d = st.date_input(t('start_date'), min_date)
     end_d = st.date_input(t('end_date'), max_date)
 
-# ... (generate_excel_template function remains same)
 def generate_excel_template(type_data):
     buffer = io.BytesIO()
     if type_data == 'perf': columns = list(COL_MAP.keys())
@@ -340,13 +324,12 @@ if selected_page == 'dash':
                     malam = shift_summary.get("Malam", 0)
                     full_day = shift_summary.get("Full day", 0)
                     
-                    st.markdown(f"### 💰 {t('shift_income')}")
+                    st.markdown("### 💰 Omset per Shift")
                     s1, s2, s3 = st.columns(3)
                     s1.metric("Pagi", format_rupiah(pagi))
                     s2.metric("Malam", format_rupiah(malam))
                     s3.metric("Full day", format_rupiah(full_day))
 
-            # ... (charts code remains same)
             with c2:
                 pie_data = df_filt.groupby('Merek')['Net Earnings'].sum().reset_index()
                 if not pie_data.empty:
@@ -383,7 +366,7 @@ if selected_page == 'dash':
             f4 = px.line(dm, x='L', y='Net Earnings', markers=True); st.plotly_chart(f4, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER
+# 6. PERFORMA DRIVER (DENGAN PATCH FOTO)
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title')); c_up, c_dl = st.columns([3, 1])
@@ -400,7 +383,7 @@ elif selected_page == 'perf':
                         if save_perf_data(temp_perf_df):
                             st.session_state["last_perf_file"] = upl.name
                             st.session_state['perf_data'] = load_perf_data()
-                            st.success(t('success_upload')); st.rerun()
+                            st.success("✅ Upload & Update Berhasil!"); st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
     with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template_performa.xlsx")
     
@@ -411,32 +394,38 @@ elif selected_page == 'perf':
             if cd2.button(t('btn_del')):
                 if delete_perf_data_by_date(ddt): 
                     st.session_state['perf_data'] = load_perf_data()
-                    st.success(t('deleted')); st.rerun()
+                    st.success("Deleted"); st.rerun()
         
         df = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         
-        # ✅ Filter Shift (Sesuai Foto 4)
-        shift_opt = st.sidebar.multiselect(
-            t("shift_filter"),
-            ["Pagi", "Malam", "Full day"],
-            default=["Pagi", "Malam", "Full day"]
-        )
-        
-        # ... (hrs, earns logic same)
+        st.sidebar.markdown("---"); st.sidebar.subheader("🔍 Filter")
+        levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
+        shift_opt = st.sidebar.multiselect("Filter Shift", ["Pagi", "Malam", "Full day"], default=["Pagi", "Malam", "Full day"])
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
         earns = ["Semua"]
-        # ... (rest of filtering)
-
+        if "Standard" in levs: earns.extend(["Standard < 300rb", "Standard 300rb-400rb", "Standard >= 400rb"])
+        if "Premium" in levs: earns.extend(["Premium < 500rb", "Premium 500rb-600rb", "Premium >= 600rb"])
+        sel_earn = st.sidebar.selectbox(t('filter_earn'), list(dict.fromkeys(earns)))
+        
         if "Shift" in df.columns:
             df["Shift"] = df["Shift"].apply(normalize_shift)
             df = df[df["Shift"].isin(shift_opt)]
-
+            
+        if levs: df = df[df['Merek'].isin(levs)]
+        if hrs == "< 7 Jam": df = df[df['Total Online Hours'] < 7]
+        elif hrs == "7 - 9 Jam": df = df[(df['Total Online Hours'] >= 7) & (df['Total Online Hours'] < 9)]
+        elif hrs == ">= 9 Jam": df = df[df['Total Online Hours'] >= 9]
+        
+        if sel_earn != "Semua":
+            if "Standard < 300rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] < 300000)]
+            elif "Standard 300rb-400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 300000) & (df['Net Earnings'] < 400000)]
+            elif "Standard >= 400rb" in sel_earn: df = df[(df['Merek']=='Standard') & (df['Net Earnings'] >= 400000)]
+            elif "Premium < 500rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] < 500000)]
+            elif "Premium 500rb-600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 500000) & (df['Net Earnings'] < 600000)]
+            elif "Premium >= 600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 600000)]
+        
         df_disp = df.rename(columns={'Merek': 'Level'})
-        
-        # ✅ Analisis Target Header (Sesuai Foto 4)
-        st.divider(); st.subheader(f"📊 {t('target_analysis')}")
-        
-        # (get_stats function)
+        st.divider(); st.subheader("📊 Analisis Target")
         def get_stats(sub, bkts, name):
             res = []; tot = sub['Net Earnings'].sum()
             for k, v in bkts.items():
@@ -447,44 +436,47 @@ elif selected_page == 'perf':
         
         ds = df[df['Merek']=='Standard']; dp = df[df['Merek']=='Premium']; c1, c2 = st.columns(2)
         with c1:
-            # ✅ Standard Header (Sesuai Foto 5)
-            st.markdown(f"### {t('standard')}")
+            st.markdown("### STANDARD")
             if not ds.empty:
-                st.write(t("income")); st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True)
-                st.write(t("online_hours")); st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
+                st.write("Pendapatan"); st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True)
+                st.write("Jam Online"); st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
         with c2:
-            # ✅ Premium Header (Sesuai Foto 5)
-            st.markdown(f"### {t('premium')}")
+            st.markdown("### PREMIUM")
             if not dp.empty:
-                st.write(t("income")); st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True)
-                st.write(t("online_hours")); st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
+                st.write("Pendapatan"); st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True)
+                st.write("Jam Online"); st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
         
-        # ✅ Summary Driver Header (Sesuai Foto 5)
-        st.divider(); st.subheader(f"📋 {t('summary_driver')}")
+        st.divider(); st.subheader("📋 Summary Driver")
         if not df_disp.empty:
             if 'Kode PT' not in df_disp.columns: df_disp['Kode PT'] = '-'
             summ = df_disp.groupby(['Nama Driver', 'Kode PT', 'Level']).agg({'Tanggal': 'nunique', 'Net Earnings': 'sum', 'Total Online Hours': 'sum', 'Total Trip Hours': 'sum', 'Total Completed Order': 'sum', 'Total Customer Cancelled': 'sum', 'Total Driver Cancelled': 'sum'}).reset_index()
-            # ... (summ logic same)
             summ['Rank'] = summ['Net Earnings'].rank(ascending=False).astype(int); summ['Avg'] = summ['Net Earnings'] / summ['Total Completed Order'].replace(0,1); summ = summ.sort_values('Rank')
             summ['Pendapatan Bersih'] = summ['Net Earnings'].apply(format_rupiah); summ['Earning Rata2'] = summ['Avg'].apply(format_rupiah); summ.reset_index(drop=True, inplace=True); summ.index += 1
             show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
             st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
         
-        # ✅ Detail Harian Header (Sesuai Foto 5)
-        st.divider(); st.subheader(f"📝 {t('detail_daily')}")
+        # --- BAGIAN DETAIL HARIAN (SESUAI PATCH FOTO) ---
+        st.divider(); st.subheader("📝 Detail Harian")
         df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
         df_show_harian = df_disp.copy()
         
-        # (Avg / Order and ID logic)
-        df_show_harian["Avg / Order"] = (df_show_harian["Net Earnings"] / df_show_harian["Total Completed Order"].replace(0, 1))
+        # ✅ Tambahkan kolom Avg / Order (Sesuai Foto 1)
+        df_show_harian["Avg / Order"] = (
+            df_show_harian["Net Earnings"] / 
+            df_show_harian["Total Completed Order"].replace(0, 1)
+        )
+        
+        # ✅ Susun ulang kolom supaya Avg / Order di sebelah Net Earnings (Sesuai Foto 2)
         cols = list(df_show_harian.columns)
         if "Net Earnings" in cols and "Avg / Order" in cols:
             net_idx = cols.index("Net Earnings")
-            cols.remove("Avg / Order"); cols.insert(net_idx + 1, "Avg / Order")
+            cols.remove("Avg / Order")
+            cols.insert(net_idx + 1, "Avg / Order")
             df_show_harian = df_show_harian[cols]
+        
+        # ✅ ID Column (Sesuai Foto 1)
         df_show_harian['id'] = range(1, len(df_show_harian) + 1)
 
-        # (HL function same)
         def hl(row):
             e, h, l, c = row['Net Earnings'], row['Total Online Hours'], row['Level'], ''
             if l == 'Standard':
@@ -497,12 +489,107 @@ elif selected_page == 'perf':
                 elif e>=600000 and h>=9: c='#ccffcc'
             return [f'background-color: {c}']*len(row) if c else ['']*len(row)
 
-        st.dataframe(df_show_harian.style.apply(hl, axis=1), hide_index=True, use_container_width=True, column_config={"Net Earnings": st.column_config.NumberColumn(format="Rp %.0f"), "Avg / Order": st.column_config.NumberColumn(format="Rp %.0f")})
+        # ✅ Update Column Config (Sesuai Foto 2)
+        st.dataframe(
+            df_show_harian.style.apply(hl, axis=1), 
+            hide_index=True, 
+            use_container_width=True, 
+            column_config={
+                "Net Earnings": st.column_config.NumberColumn(format="Rp %.0f"),
+                "Avg / Order": st.column_config.NumberColumn(format="Rp %.0f")
+            }
+        )
 
-# ... (rest of the code for data driver and car remains same)
+# ==========================================
+# 7. DATA DRIVER
+# ==========================================
 elif selected_page == 'data':
-    st.title(t('data_title'))
-    # ...
+    st.title(t('data_title')); c_up, c_dl = st.columns([3, 1])
+    with c_up:
+        upl = st.file_uploader(t('upload_data'), type=['xlsx'], key="driver_uploader")
+        if upl:
+            if "last_driver_file" not in st.session_state or st.session_state["last_driver_file"] != upl.name:
+                if save_driver_data(pd.read_excel(upl)): 
+                    st.session_state["last_driver_file"] = upl.name
+                    st.session_state['driver_data'] = load_driver_data()
+                    st.success("Success!"); st.rerun()
+    with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('driver'), "template_driver.xlsx")
+    df_d = st.session_state['driver_data']; m1, m2, m3 = st.columns(3); total = len(df_d) if not df_d.empty else 0; active = len(df_d[df_d['Status']=='Active']) if not df_d.empty else 0; resign = len(df_d[df_d['Status']=='Resigned']) if not df_d.empty else 0
+    m1.metric(t('stat_total'), total); m2.metric(t('stat_active'), active); m3.metric(t('stat_resign'), resign); st.divider(); col_in, col_del = st.columns(2)
+    with col_in:
+        with st.expander(f"➕ {t('input_manual')}"):
+            with st.form("add_driver_form"):
+                dn = st.text_input("Nama Driver"); dc = st.text_input("Kode PT"); de = st.text_input("Pengalaman App"); dw = st.date_input("Waktu Masuk Kerja"); dj = st.selectbox("Jenis Kelamin", ["Laki-laki", "Perempuan"]); dd = st.text_input("Domisili"); ds = st.selectbox("Status", t('driver_status_opt'))
+                if st.form_submit_button(t('btn_add')):
+                    if save_driver_data(pd.DataFrame([{"Nama Driver": dn, "Kode PT": dc, "Pengalaman App": de, "Waktu Masuk Kerja": dw, "Jenis Kelamin": dj, "Domisili": dd, "Status": ds}])): st.session_state['driver_data'] = load_driver_data(); st.success("Saved!"); st.rerun()
+    with col_del:
+        with st.expander(f"🗑️ {t('del_manual')}"):
+            if not df_d.empty:
+                del_name = st.selectbox("Pilih Driver", df_d['Nama Driver'].unique())
+                if st.button(t('btn_del_drv')):
+                    if delete_driver_by_name(del_name): st.session_state['driver_data'] = load_driver_data(); st.success("Deleted!"); st.rerun()
+    st.markdown("### List Driver")
+    if not df_d.empty: df_show = df_d.reset_index(drop=True); df_show.index += 1; st.dataframe(df_show, use_container_width=True)
+
+# ==========================================
+# 8. DATA MOBIL
+# ==========================================
 elif selected_page == 'car':
     st.title(t('car_title'))
-    # ...
+    with st.expander(f"📧 {t('reminder_check')}"):
+        st.write(t('reminder_desc'))
+        if st.button("Check & Send Email"):
+            df_check = st.session_state['car_data'].copy()
+            if not df_check.empty:
+                today, alert_msg = datetime.now().date(), ""
+                for _, row in df_check.iterrows():
+                    if pd.notnull(row['Tanggal Habis Asuransi']):
+                        days_left = (pd.to_datetime(row['Tanggal Habis Asuransi']).date() - today).days
+                        if 0 <= days_left <= 30: alert_msg += f"- Mobil {row['Kode Mobil']} (Asuransi): Expired {days_left} hari lagi\n"
+                    if pd.notnull(row['Tanggal Pajak Tahunan']):
+                        days_left_tax = (pd.to_datetime(row['Tanggal Pajak Tahunan']).date() - today).days
+                        if 0 <= days_left_tax <= 30: alert_msg += f"- Mobil {row['Kode Mobil']} (Pajak): Expired {days_left_tax} hari lagi\n"
+                if alert_msg:
+                    st.warning("Found expiring items:\n" + alert_msg)
+                    if send_email_notification("REMINDER: Armada Expiring Soon", f"Daftar armada:\n\n{alert_msg}"): st.success("Email sent!")
+                else: st.info("No items expiring.")
+            else: st.error("No car data found.")
+    
+    c_up, c_dl = st.columns([3, 1])
+    with c_up:
+        upl = st.file_uploader(t('upload_car'), type=['xlsx'], key="car_uploader")
+        if upl:
+            if "last_car_file" not in st.session_state or st.session_state["last_car_file"] != upl.name:
+                try:
+                    temp_df = pd.read_excel(upl); missing_cols = [col for col in list(CAR_COL_MAP.keys()) if col not in temp_df.columns]
+                    if missing_cols: st.error(f"❌ Upload Gagal! Kolom tidak ditemukan:\n {', '.join(missing_cols)}")
+                    else:
+                        if save_car_data(temp_df): 
+                            st.session_state["last_car_file"] = upl.name
+                            st.session_state['car_data'] = load_car_data()
+                            st.success("✅ Success!"); st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+    with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('car'), "template_car.xlsx")
+    
+    df_c = st.session_state['car_data']; k1, k2, k3, k4, k5 = st.columns(5); tot_c = len(df_c) if not df_c.empty else 0
+    k1.metric(t('stat_car_total'), tot_c); k2.metric(t('stat_car_active'), len(df_c[df_c['Status Mobil']=='Active']) if not df_c.empty else 0); k3.metric(t('stat_car_maint'), len(df_c[df_c['Status Mobil']=='Maintenance']) if not df_c.empty else 0); k4.metric(t('stat_car_broken'), len(df_c[df_c['Status Mobil']=='Rusak']) if not df_c.empty else 0); k5.metric(t('stat_car_unused'), len(df_c[df_c['Status Mobil']=='Tidak Dipakai']) if not df_c.empty else 0)
+    st.divider(); ci, cd = st.columns(2)
+    with ci:
+        with st.expander(f"➕ {t('input_car')}"):
+            with st.form("add_car_form"):
+                c1, c2 = st.columns(2)
+                with c1: c_buy, c_brand, c_code, c_plat, c_type, c_year, c_col, c_chassis, c_engine = st.date_input("Tanggal Pembelian"), st.text_input("Merek Mobil"), st.text_input("Kode Mobil"), st.text_input("Plat Nomor"), st.text_input("Type Mobil"), st.text_input("Tahun Produksi"), st.text_input("Warna Mobil"), st.text_input("No Rangka"), st.text_input("No Mesin")
+                with c2: c_tax, c_plat_dt, c_stat, c_ins_n, c_ins_s, c_ins_e, c_rem, c_doc_file = st.date_input("Tanggal Pajak Tahunan"), st.date_input("Tanggal Ganti Plat"), st.selectbox("Status Mobil", t('car_status_opt')), st.text_input("Nama Asuransi"), st.date_input("Asuransi Mulai"), st.date_input("Asuransi Habis"), st.text_input("Reminder"), st.file_uploader("Upload Dokumen", type=['png', 'jpg', 'pdf'])
+                if st.form_submit_button(t('btn_add_car')):
+                    doc_url = upload_file_to_supabase(c_doc_file) if c_doc_file else ""
+                    if save_car_data(pd.DataFrame([{"Tanggal Pembelian": c_buy, "Merek Mobil": c_brand, "Kode Mobil": c_code, "Plat Nomor": c_plat, "Type Mobil": c_type, "Tahun Produksi": c_year, "Warna Mobil": c_col, "No Rangka": c_chassis, "No Mesin": c_engine, "Tanggal Pajak Tahunan": c_tax, "Tanggal Ganti Plat": c_plat_dt, "Status Mobil": c_stat, "Nama Asuransi": c_ins_n, "Tanggal Mulai Asuransi": c_ins_s, "Tanggal Habis Asuransi": c_ins_e, "Reminder": c_rem, "Dokumen": doc_url}])): st.session_state['car_data'] = load_car_data(); st.success("Saved!"); st.rerun()
+    with cd:
+        with st.expander(f"🗑️ {t('del_car')}"):
+            if not df_c.empty:
+                del_code = st.selectbox("Pilih Kode Mobil", df_c['Kode Mobil'].unique())
+                if st.button(t('btn_del_car')):
+                    if delete_car_by_code(del_code): st.session_state['car_data'] = load_car_data(); st.success("Deleted!"); st.rerun()
+    st.markdown("### List Armada")
+    if not df_c.empty: 
+        df_show_c = df_c.reset_index(drop=True); df_show_c.index += 1
+        st.dataframe(df_show_c, use_container_width=True, column_config={"Dokumen": st.column_config.LinkColumn("Lihat Dokumen", display_text="Buka File")})
