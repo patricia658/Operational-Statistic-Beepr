@@ -57,7 +57,7 @@ def send_email_notification(subject, body_text):
 # ==========================================
 def format_rupiah(value): return f"Rp {value:,.0f}"
 
-# ✅ NORMALIZE SHIFT VALUE (Sesuai Patch 1 di foto)
+# ✅ NORMALIZE SHIFT VALUE
 def normalize_shift(val):
     if pd.isna(val):
         return "Full day"
@@ -76,7 +76,7 @@ def normalize_shift(val):
     return "Full day"
 
 # ==========================================
-# MAPPING DATA (STEP 1: Tambah kolom Shift)
+# MAPPING DATA
 # ==========================================
 COL_MAP = {
     "Tanggal": "tanggal", 
@@ -85,7 +85,7 @@ COL_MAP = {
     "Plat No": "plat_no", 
     "Merek": "merek", 
     "Platform": "platform",
-    "Shift": "shift",  # ✅ STEP 1-A: Added to COL_MAP
+    "Shift": "shift", 
     "Net Earnings": "net_earnings", 
     "Total Online Hours": "total_online_hours",
     "Total Trip Hours": "total_trip_hours", 
@@ -122,7 +122,7 @@ def load_perf_data():
             df = pd.DataFrame(response.data).rename(columns=REV_COL_MAP)
             if 'Merek' in df.columns: df['Merek'] = df['Merek'].replace(CAR_RENAME_MAP)
             
-            # ✅ PATCH 2: Normalize Shift Saat Load Data
+            # Normalize Shift Saat Load Data
             if "Shift" in df.columns:
                 df["Shift"] = df["Shift"].apply(normalize_shift)
                 
@@ -134,7 +134,7 @@ def save_perf_data(df):
     try:
         df_db = df.rename(columns=COL_MAP)
         
-        # ✅ PATCH 3: Normalize Shift Saat Upload Excel
+        # Normalize Shift Saat Upload Excel
         if "shift" in df_db.columns:
             df_db["shift"] = df_db["shift"].apply(normalize_shift)
             
@@ -236,14 +236,16 @@ if 'driver_data' not in st.session_state: st.session_state['driver_data'] = load
 if 'car_data' not in st.session_state: st.session_state['car_data'] = load_car_data()
 
 # ==========================================
-# 3. KAMUS BAHASA (UPDATE: DENGAN MANDARIN)
+# 3. KAMUS BAHASA (UPDATE: + GROSS REV)
 # ==========================================
 trans = {
     'ID': {
         'nav_title': "Navigasi", 'menu_dash': "Dashboard", 'menu_perf': "Performa Driver", 'menu_data': "Data Driver", 'menu_car': "Data Armada (Mobil)",
         'dash_title': "Dashboard Utama", 'filter_date': "Filter Tanggal", 'start_date': "Tanggal Mulai", 'end_date': "Tanggal Akhir",
         'summary_all': "Ringkasan Gabungan (Semua Armada)", 'metrics_title': "Detail Per Level (Standard & Premium)", 'brand': "Level", 'platform': "Platform",
-        'rev': "Total Omset", 'orders': "Total Completed Order", 'cust_cancel': "Customer Cancelled", 'drv_cancel': "Driver Cancelled",
+        'rev': "Omset Net", # Ubah label agar jelas
+        'gross_rev': "Omset Sebelum Potongan", # ✅ PATCH 4 (Bilingual)
+        'orders': "Total Completed Order", 'cust_cancel': "Customer Cancelled", 'drv_cancel': "Driver Cancelled",
         'avg_ord': "Rata-rata / Order", 'avg_day': "Rata-rata / Hari", 'drivers': "Jumlah Driver",
         'chart_comp': "Grafik Perbandingan Omset", 'chart_plat': "Grafik Perbandingan Omset",
         'chart_total': "Grafik Total Omset Harian (Gabungan)", 'chart_month': "Grafik Total Omset Bulanan",
@@ -259,7 +261,6 @@ trans = {
         'input_car': "Input Mobil Manual", 'del_car': "Hapus Mobil Manual", 'btn_add_car': "Tambah Mobil", 'btn_del_car': "Hapus Mobil",
         'car_status_opt': ["Active", "Maintenance", "Rusak", "Tidak Dipakai"], 'driver_status_opt': ["Active", "Resigned"],
         'reminder_check': "Cek & Kirim Reminder", 'reminder_desc': "Cek Pajak/Asuransi yang mau habis (<30 hari) dan kirim email.",
-        # --- KEY TAMBAHAN UNTUK PATCH BILINGUAL ---
         'filter_title': "Filter", 'shift_filter': "Filter Shift", 'shift_income': "Omset per Shift",
         'target_analysis': "Analisis Target", 'standard': "STANDARD", 'income': "Pendapatan", 'online_hours': "Jam Online",
         'premium': "PREMIUM", 'summary_driver': "Summary Driver", 'detail_daily': "Detail Harian",
@@ -269,7 +270,9 @@ trans = {
         'nav_title': "导航", 'menu_dash': "仪表盘", 'menu_perf': "司机表现", 'menu_data': "司机数据", 'menu_car': "车辆管理",
         'dash_title': "主仪表盘", 'filter_date': "日期筛选", 'start_date': "开始日期", 'end_date': "结束日期",
         'summary_all': "综合汇总 (全部车队)", 'metrics_title': "等级详情 (Standard & Premium)", 'brand': "等级", 'platform': "平台",
-        'rev': "总收入", 'orders': "完成订单总数", 'cust_cancel': "乘客取消", 'drv_cancel': "司机取消",
+        'rev': "净收入", 
+        'gross_rev': "扣除前总收入", # ✅ PATCH 4 (Bilingual)
+        'orders': "完成订单总数", 'cust_cancel': "乘客取消", 'drv_cancel': "司机取消",
         'avg_ord': "每单平均收入", 'avg_day': "每日平均收入", 'drivers': "司机数量",
         'chart_comp': "收入对比图表", 'chart_plat': "平台收入图表",
         'chart_total': "每日总收入图表", 'chart_month': "每月总收入图表",
@@ -285,7 +288,6 @@ trans = {
         'input_car': "手动录入车辆", 'del_car': "手动删除车辆", 'btn_add_car': "添加车辆", 'btn_del_car': "删除车辆",
         'car_status_opt': ["运营中", "维护中", "故障", "闲置"], 'driver_status_opt': ["在职", "离职"],
         'reminder_check': "检查并发送提醒", 'reminder_desc': "检查即将到期的税务/保险 (30天内) 并发送邮件提醒。",
-        # --- KEY TAMBAHAN UNTUK PATCH BILINGUAL ---
         'filter_title': "筛选", 'shift_filter': "班次筛选", 'shift_income': "按班次收入",
         'target_analysis': "目标分析", 'standard': "标准车", 'income': "收入", 'online_hours': "在线时长",
         'premium': "高端车", 'summary_driver': "司机汇总", 'detail_daily': "每日明细",
@@ -298,10 +300,16 @@ trans = {
 # ==========================================
 start_d, end_d = None, None
 with st.sidebar:
-    # ✅ UPDATE: Pilihan Bahasa jadi 2
+    # ✅ PATCH 1: LOGO BEEPR DI SIDEBAR
+    try:
+        st.image("Beeprtrans Logo.png", use_container_width=True)
+    except:
+        st.warning("Logo not found (Beeprtrans Logo.png)")
+
     lang_opt = st.radio("Language", ["ID", "中文"], horizontal=True, key="language")
     def t(key):
         lang = st.session_state.get('language', 'ID'); return trans[lang].get(key, key)
+    
     st.markdown("---"); st.header(t('nav_title'))
     nav_options = {'dash': t('menu_dash'), 'perf': t('menu_perf'), 'data': t('menu_data'), 'car': t('menu_car')}
     selected_page = st.radio("Menu", list(nav_options.keys()), format_func=lambda x: nav_options[x])
@@ -337,7 +345,11 @@ if selected_page == 'dash':
         df_filt = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         if df_filt.empty: st.error(t('no_data_range'))
         else:
-            tot_omset = df_filt['Net Earnings'].sum(); tot_order = df_filt['Total Completed Order'].sum()
+            tot_omset = df_filt['Net Earnings'].sum()
+            # ✅ PATCH 2: Omset Gross (Net / 0.8)
+            tot_omset_gross = tot_omset / 0.8
+            
+            tot_order = df_filt['Total Completed Order'].sum()
             tot_cust_canc = df_filt['Total Customer Cancelled'].sum(); tot_drv_canc = df_filt['Total Driver Cancelled'].sum()
             tot_driver = df_filt['Nama Driver'].nunique(); unique_days = df_filt['Tanggal'].nunique()
             avg_earn_per_day = tot_omset / unique_days if unique_days > 0 else 0
@@ -346,8 +358,17 @@ if selected_page == 'dash':
             c1, c2 = st.columns([2.5, 1])
             
             with c1:
-                r1a, r1b, r1c = st.columns(3); r1a.metric(t('rev'), format_rupiah(tot_omset)); r1b.metric(t('orders'), f"{tot_order}"); r1c.metric(t('drivers'), f"{tot_driver}")
-                r2a, r2b, r2c = st.columns(3); r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day)); r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0)); r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
+                # ✅ PATCH 3: Layout 4 Kolom + Metric Baru
+                r1a, r1b, r1c, r1d = st.columns(4)
+                r1a.metric(t('rev'), format_rupiah(tot_omset))                 # Net
+                r1b.metric(t('gross_rev'), format_rupiah(tot_omset_gross))     # Gross (Pakai key dict baru)
+                r1c.metric(t('orders'), f"{tot_order}")
+                r1d.metric(t('drivers'), f"{tot_driver}")                      # Pindah ke sini
+
+                r2a, r2b, r2c = st.columns(3)
+                r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day))
+                r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0))
+                r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
                 
                 if "Shift" in df_filt.columns:
                     df_filt["Shift"] = df_filt["Shift"].apply(normalize_shift)
@@ -356,7 +377,6 @@ if selected_page == 'dash':
                     malam = shift_summary.get("Malam", 0)
                     full_day = shift_summary.get("Full day", 0)
                     
-                    # ✅ UPDATE: Header Bilingual
                     st.markdown(f"### 💰 {t('shift_income')}")
                     s1, s2, s3 = st.columns(3)
                     s1.metric("Pagi", format_rupiah(pagi))
@@ -399,7 +419,7 @@ if selected_page == 'dash':
             f4 = px.line(dm, x='L', y='Net Earnings', markers=True); st.plotly_chart(f4, use_container_width=True)
 
 # ==========================================
-# 6. PERFORMA DRIVER (DENGAN PATCH FOTO)
+# 6. PERFORMA DRIVER
 # ==========================================
 elif selected_page == 'perf':
     st.title(t('perf_title')); c_up, c_dl = st.columns([3, 1])
@@ -416,7 +436,6 @@ elif selected_page == 'perf':
                         if save_perf_data(temp_perf_df):
                             st.session_state["last_perf_file"] = upl.name
                             st.session_state['perf_data'] = load_perf_data()
-                            # ✅ UPDATE: Pesan Sukses Bilingual
                             st.success(f"✅ {t('success_upload')}"); st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
     with c_dl: st.write(""); st.write(""); st.download_button(f"📥 {t('download_tmpl')}", generate_excel_template('perf'), "template_performa.xlsx")
@@ -428,15 +447,12 @@ elif selected_page == 'perf':
             if cd2.button(t('btn_del')):
                 if delete_perf_data_by_date(ddt): 
                     st.session_state['perf_data'] = load_perf_data()
-                    # ✅ UPDATE: Pesan Hapus Bilingual
                     st.success(t('deleted')); st.rerun()
         
         df = df.loc[(df['Tanggal'].dt.date >= start_d) & (df['Tanggal'].dt.date <= end_d)]
         
-        # ✅ UPDATE: Filter Title Bilingual
         st.sidebar.markdown("---"); st.sidebar.subheader(f"🔍 {t('filter_title')}")
         levs = st.sidebar.multiselect(t('filter_brand'), ["Standard", "Premium"], default=["Standard", "Premium"])
-        # ✅ UPDATE: Shift Filter Bilingual
         shift_opt = st.sidebar.multiselect(t('shift_filter'), ["Pagi", "Malam", "Full day"], default=["Pagi", "Malam", "Full day"])
         hrs = st.sidebar.selectbox(t('filter_hour'), ["Semua", "< 7 Jam", "7 - 9 Jam", ">= 9 Jam"])
         earns = ["Semua"]
@@ -462,7 +478,6 @@ elif selected_page == 'perf':
             elif "Premium >= 600rb" in sel_earn: df = df[(df['Merek']=='Premium') & (df['Net Earnings'] >= 600000)]
         
         df_disp = df.rename(columns={'Merek': 'Level'})
-        # ✅ UPDATE: Header Analisis Target Bilingual
         st.divider(); st.subheader(f"📊 {t('target_analysis')}")
         def get_stats(sub, bkts, name):
             res = []; tot = sub['Net Earnings'].sum()
@@ -474,19 +489,16 @@ elif selected_page == 'perf':
         
         ds = df[df['Merek']=='Standard']; dp = df[df['Merek']=='Premium']; c1, c2 = st.columns(2)
         with c1:
-            # ✅ UPDATE: Header Standard & Teks Bilingual
             st.markdown(f"### {t('standard')}")
             if not ds.empty:
                 st.write(t('income')); st.dataframe(get_stats(ds, {"<300rb": ds['Net Earnings']<300000, "300-400rb": (ds['Net Earnings']>=300000)&(ds['Net Earnings']<400000), ">400rb": ds['Net Earnings']>=400000}, "Klasifikasi"), hide_index=True)
                 st.write(t('online_hours')); st.dataframe(get_stats(ds, {"<7 jam": ds['Total Online Hours']<7, "7-9 jam": (ds['Total Online Hours']>=7)&(ds['Total Online Hours']<9), ">9 jam": ds['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
         with c2:
-            # ✅ UPDATE: Header Premium & Teks Bilingual
             st.markdown(f"### {t('premium')}")
             if not dp.empty:
                 st.write(t('income')); st.dataframe(get_stats(dp, {"<500rb": dp['Net Earnings']<500000, "500-600rb": (dp['Net Earnings']>=500000)&(dp['Net Earnings']<600000), ">600rb": dp['Net Earnings']>=600000}, "Klasifikasi"), hide_index=True)
                 st.write(t('online_hours')); st.dataframe(get_stats(dp, {"<7 jam": dp['Total Online Hours']<7, "7-9 jam": (dp['Total Online Hours']>=7)&(dp['Total Online Hours']<9), ">9 jam": dp['Total Online Hours']>=9}, "Klasifikasi"), hide_index=True)
         
-        # ✅ UPDATE: Summary Driver Bilingual
         st.divider(); st.subheader(f"📋 {t('summary_driver')}")
         if not df_disp.empty:
             if 'Kode PT' not in df_disp.columns: df_disp['Kode PT'] = '-'
@@ -496,18 +508,15 @@ elif selected_page == 'perf':
             show = summ.rename(columns={'Tanggal': 'Total Hari Kerja', 'Total Online Hours': 'Jam Online', 'Total Trip Hours': 'Jam Trip'})
             st.dataframe(show[['Nama Driver', 'Kode PT', 'Total Hari Kerja', 'Rank', 'Pendapatan Bersih', 'Jam Online', 'Jam Trip', 'Total Completed Order', 'Total Customer Cancelled', 'Total Driver Cancelled', 'Earning Rata2']], use_container_width=True)
         
-        # ✅ UPDATE: Detail Harian Bilingual
         st.divider(); st.subheader(f"📝 {t('detail_daily')}")
         df_disp['Tanggal'] = pd.to_datetime(df_disp['Tanggal']).dt.date
         df_show_harian = df_disp.copy()
         
-        # ✅ Tambahkan kolom Avg / Order (Sesuai Foto 1)
         df_show_harian["Avg / Order"] = (
             df_show_harian["Net Earnings"] / 
             df_show_harian["Total Completed Order"].replace(0, 1)
         )
         
-        # ✅ Susun ulang kolom supaya Avg / Order di sebelah Net Earnings (Sesuai Foto 2)
         cols = list(df_show_harian.columns)
         if "Net Earnings" in cols and "Avg / Order" in cols:
             net_idx = cols.index("Net Earnings")
@@ -515,7 +524,6 @@ elif selected_page == 'perf':
             cols.insert(net_idx + 1, "Avg / Order")
             df_show_harian = df_show_harian[cols]
         
-        # ✅ ID Column (Sesuai Foto 1)
         df_show_harian['id'] = range(1, len(df_show_harian) + 1)
 
         def hl(row):
@@ -530,7 +538,6 @@ elif selected_page == 'perf':
                 elif e>=600000 and h>=9: c='#ccffcc'
             return [f'background-color: {c}']*len(row) if c else ['']*len(row)
 
-        # ✅ Update Column Config (Sesuai Foto 2)
         st.dataframe(
             df_show_harian.style.apply(hl, axis=1), 
             hide_index=True, 
