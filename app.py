@@ -53,42 +53,26 @@ def send_email_notification(subject, body_text):
     except: return False
 
 # ==========================================
-# PATCH 1: Tambah Fungsi Normalize Shift (WAJIB)
+# UTILITAS FORMATTING
 # ==========================================
 def format_rupiah(value): return f"Rp {value:,.0f}"
 
-# ✅ NORMALIZE SHIFT VALUE
 def normalize_shift(val):
-    if pd.isna(val):
-        return "Full day"
+    if pd.isna(val): return "Full day"
     v = str(val).strip().lower()
-    
-    if v in ["pagi", "morning"]:
-        return "Pagi"
-    if v in ["malam", "night"]:
-        return "Malam"
-    
-    # Semua variasi Full Day
-    if v in ["full day", "fullday", "full-day", "full_day", "seharian"]:
-        return "Full day"
-    
-    # Default fallback
+    if v in ["pagi", "morning"]: return "Pagi"
+    if v in ["malam", "night"]: return "Malam"
+    if v in ["full day", "fullday", "full-day", "full_day", "seharian"]: return "Full day"
     return "Full day"
 
 # ==========================================
 # MAPPING DATA
 # ==========================================
 COL_MAP = {
-    "Tanggal": "tanggal", 
-    "Nama Driver": "nama_driver", 
-    "Kode PT": "kode_pt",
-    "Plat No": "plat_no", 
-    "Merek": "merek", 
-    "Platform": "platform",
-    "Shift": "shift", 
-    "Net Earnings": "net_earnings", 
-    "Total Online Hours": "total_online_hours",
-    "Total Trip Hours": "total_trip_hours", 
+    "Tanggal": "tanggal", "Nama Driver": "nama_driver", "Kode PT": "kode_pt",
+    "Plat No": "plat_no", "Merek": "merek", "Platform": "platform",
+    "Shift": "shift", "Net Earnings": "net_earnings", 
+    "Total Online Hours": "total_online_hours", "Total Trip Hours": "total_trip_hours", 
     "Total Completed Order": "total_completed_order",
     "Total Customer Cancelled": "total_customer_cancelled", 
     "Total Driver Cancelled": "total_driver_cancelled"
@@ -121,11 +105,7 @@ def load_perf_data():
         if response.data:
             df = pd.DataFrame(response.data).rename(columns=REV_COL_MAP)
             if 'Merek' in df.columns: df['Merek'] = df['Merek'].replace(CAR_RENAME_MAP)
-            
-            # Normalize Shift Saat Load Data
-            if "Shift" in df.columns:
-                df["Shift"] = df["Shift"].apply(normalize_shift)
-                
+            if "Shift" in df.columns: df["Shift"] = df["Shift"].apply(normalize_shift)
             return df
         return pd.DataFrame()
     except: return pd.DataFrame()
@@ -133,11 +113,7 @@ def load_perf_data():
 def save_perf_data(df):
     try:
         df_db = df.rename(columns=COL_MAP)
-        
-        # Normalize Shift Saat Upload Excel
-        if "shift" in df_db.columns:
-            df_db["shift"] = df_db["shift"].apply(normalize_shift)
-            
+        if "shift" in df_db.columns: df_db["shift"] = df_db["shift"].apply(normalize_shift)
         df_db = df_db.dropna(subset=['tanggal'])
         valid = list(COL_MAP.values())
         df_db = df_db[[c for c in valid if c in df_db.columns]]
@@ -148,8 +124,7 @@ def save_perf_data(df):
         supabase.table("perf_data").upsert(df_db.to_dict('records'), on_conflict="tanggal,nama_driver,platform").execute()
         return True
     except Exception as e:
-        st.error(f"Database Error: {e}")
-        return False
+        st.error(f"Database Error: {e}"); return False
 
 def delete_perf_data_by_date(date_obj):
     try:
@@ -236,15 +211,15 @@ if 'driver_data' not in st.session_state: st.session_state['driver_data'] = load
 if 'car_data' not in st.session_state: st.session_state['car_data'] = load_car_data()
 
 # ==========================================
-# 3. KAMUS BAHASA (UPDATE: + GROSS REV)
+# 3. KAMUS BAHASA
 # ==========================================
 trans = {
     'ID': {
         'nav_title': "Navigasi", 'menu_dash': "Dashboard", 'menu_perf': "Performa Driver", 'menu_data': "Data Driver", 'menu_car': "Data Armada (Mobil)",
         'dash_title': "Dashboard Utama", 'filter_date': "Filter Tanggal", 'start_date': "Tanggal Mulai", 'end_date': "Tanggal Akhir",
         'summary_all': "Ringkasan Gabungan (Semua Armada)", 'metrics_title': "Detail Per Level (Standard & Premium)", 'brand': "Level", 'platform': "Platform",
-        'rev': "Omset Net", # Ubah label agar jelas
-        'gross_rev': "Omset Sebelum Potongan", # ✅ PATCH 4 (Bilingual)
+        'rev': "Omset Net", 
+        'gross_rev': "Omset Gross (Before 20%)",
         'orders': "Total Completed Order", 'cust_cancel': "Customer Cancelled", 'drv_cancel': "Driver Cancelled",
         'avg_ord': "Rata-rata / Order", 'avg_day': "Rata-rata / Hari", 'drivers': "Jumlah Driver",
         'chart_comp': "Grafik Perbandingan Omset", 'chart_plat': "Grafik Perbandingan Omset",
@@ -271,7 +246,7 @@ trans = {
         'dash_title': "主仪表盘", 'filter_date': "日期筛选", 'start_date': "开始日期", 'end_date': "结束日期",
         'summary_all': "综合汇总 (全部车队)", 'metrics_title': "等级详情 (Standard & Premium)", 'brand': "等级", 'platform': "平台",
         'rev': "净收入", 
-        'gross_rev': "扣除前总收入", # ✅ PATCH 4 (Bilingual)
+        'gross_rev': "扣除前总收入",
         'orders': "完成订单总数", 'cust_cancel': "乘客取消", 'drv_cancel': "司机取消",
         'avg_ord': "每单平均收入", 'avg_day': "每日平均收入", 'drivers': "司机数量",
         'chart_comp': "收入对比图表", 'chart_plat': "平台收入图表",
@@ -300,11 +275,14 @@ trans = {
 # ==========================================
 start_d, end_d = None, None
 with st.sidebar:
-    # ✅ PATCH 1: LOGO BEEPR DI SIDEBAR
+    # ✅ PATCH 1: LOGO BEEPR KECIL & CENTER DI SIDEBAR
+    st.sidebar.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
     try:
-        st.image("Beeprtrans Logo.png", use_container_width=True)
+        st.sidebar.image("Beeprtrans Logo.png", width=130)
     except:
-        st.warning("Logo not found (Beeprtrans Logo.png)")
+        st.warning("Logo Missing")
+    st.sidebar.markdown("</div>", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
 
     lang_opt = st.radio("Language", ["ID", "中文"], horizontal=True, key="language")
     def t(key):
@@ -358,18 +336,30 @@ if selected_page == 'dash':
             c1, c2 = st.columns([2.5, 1])
             
             with c1:
-                # ✅ PATCH 3: Layout 4 Kolom + Metric Baru
-                r1a, r1b, r1c, r1d = st.columns(4)
-                r1a.metric(t('rev'), format_rupiah(tot_omset))                 # Net
-                r1b.metric(t('gross_rev'), format_rupiah(tot_omset_gross))     # Gross (Pakai key dict baru)
-                r1c.metric(t('orders'), f"{tot_order}")
-                r1d.metric(t('drivers'), f"{tot_driver}")                      # Pindah ke sini
+                # ✅ PATCH 3: Susunan Metric 2 Baris (Baris 1 Gross, Baris 2 Net)
+                # =============================================
+                # BARIS 1 -- OMSET GROSS (Sebelum Potongan)
+                # =============================================
+                g1, g2, g3 = st.columns(3)
+                g1.metric("Omset Gross (Before 20%)", format_rupiah(tot_omset_gross))
+                g2.metric(t('orders'), f"{tot_order}")
+                g3.metric(t('drivers'), f"{tot_driver}")
 
-                r2a, r2b, r2c = st.columns(3)
-                r2a.metric(t('avg_day'), format_rupiah(avg_earn_per_day))
-                r2b.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0))
-                r2c.metric("Total Cancelled", f"{tot_cust_canc + tot_drv_canc}")
+                st.write("") # Spacer kecil
+
+                # =============================================
+                # BARIS 2 -- OMSET NET (Sesudah Potongan)
+                # =============================================
+                n1, n2, n3 = st.columns(3)
+                n1.metric("Omset Net (After Cut)", format_rupiah(tot_omset))
+                n2.metric(t('avg_day'), format_rupiah(avg_earn_per_day))
+                n3.metric(t('avg_ord'), format_rupiah(tot_omset/tot_order if tot_order>0 else 0))
                 
+                # TOTAL CANCELLED
+                st.write(f"**Total Cancelled:** {tot_cust_canc + tot_drv_canc}")
+
+                st.divider()
+
                 if "Shift" in df_filt.columns:
                     df_filt["Shift"] = df_filt["Shift"].apply(normalize_shift)
                     shift_summary = df_filt.groupby("Shift")["Net Earnings"].sum()
